@@ -675,7 +675,15 @@ function tryPin(){
 }
 
 const DIAS=['Dll','Dm','Dc','Dj','Dv','Ds','Dg'];
-const DIAS_FULL=['Dilluns','Dimarts','Dimecres','Dijous','Divendres','Dissabte','Diumenge'];
+const DIAS_ES=['LUN','MAR','MIE','JUE','VIE','SAB','DOM'];
+function getMonday(d){
+  const x=new Date(d);const day=x.getDay();const diff=day===0?-6:1-day;
+  x.setDate(x.getDate()+diff);x.setHours(0,0,0,0);return x;
+}
+function weekDates(o){
+  const mon=getMonday(new Date());mon.setDate(mon.getDate()+o*7);
+  return Array.from({length:7},(_,i)=>{const d=new Date(mon);d.setDate(mon.getDate()+i);return d;});
+}
 const WE=[5,6];
 const CV={baja:1,media:2,alta:3,max:4};
 const CC={baja:'#639922',media:'#BA7517',alta:'#D85A30',max:'#E24B4A'};
@@ -782,7 +790,7 @@ function renderCal(calId){
   const firstDay=new Date(year,month,1);const daysInMonth=new Date(year,month+1,0).getDate();
   let startDow=firstDay.getDay()-1;if(startDow<0)startDow=6;
   const selOff=isEnt?ST.entWeekOff:ST.weekOff;
-  const selMon=new Date();selMon.setDate(selMon.getDate()-selMon.getDay()+1+selOff*7);selMon.setHours(0,0,0,0);
+  const selMon=getMonday(new Date());selMon.setDate(selMon.getDate()+selOff*7);
   const selSun=new Date(selMon);selSun.setDate(selMon.getDate()+6);
   const MESOS=['Gener','Febrer','Març','Abril','Maig','Juny','Juliol','Agost','Setembre','Octubre','Novembre','Desembre'];
   const DOWS=['Dl','Dm','Dc','Dj','Dv','Ds','Dg'];
@@ -801,10 +809,10 @@ function calNav(calId,dir){
   if(month>11){month=0;year++;}if(month<0){month=11;year--;}_calState[calId]={year,month};renderCal(calId);
 }
 function calSelectDay(calId,year,month,day){
-  const clicked=new Date(year,month,day);const now=new Date();now.setHours(0,0,0,0);
-  const nowMon=new Date(now);nowMon.setDate(now.getDate()-now.getDay()+1);
-  const clickMon=new Date(clicked);clickMon.setDate(clicked.getDate()-clicked.getDay()+1);
-  const diff=Math.round((clickMon-nowMon)/(7*24*3600*1000));
+  const clicked=new Date(year,month,day);
+const nowMon=getMonday(new Date());
+const clickMon=getMonday(clicked);
+const diff=Math.round((clickMon-nowMon)/(7*24*3600*1000));
   const isEnt=calId==='ent-cal';
   if(isEnt){ST.entWeekOff=diff;updateEntLabel();ST.expandedDays={};renderEntContent();}
   else{ST.weekOff=diff;updateLabels();renderPlanner();}
@@ -828,7 +836,7 @@ async function toggleTrainDay(di,btn){
 }
 
 function wLabel(o){
-  const d=new Date();d.setDate(d.getDate()-d.getDay()+1+o*7);const d2=new Date(d);d2.setDate(d.getDate()+6);
+  const d=getMonday(new Date());d.setDate(d.getDate()+o*7);const d2=new Date(d);d2.setDate(d.getDate()+6);
   const f=x=>x.toLocaleDateString('ca-ES',{day:'numeric',month:'short'});return f(d)+' – '+f(d2);
 }
 function updateLabels(){
@@ -1130,7 +1138,8 @@ function renderLibDetail(id,t){
 
 function renderPlanner(){
   const cat=currentCat();if(!cat)return;const wo=ST.weekOff;updateLabels();let tot=0,comp=0,fbct=0,csum=0;const cols='106px repeat(7,1fr)';
-  let html=`<div class="pgrid-header" style="grid-template-columns:${cols}"><div class="ghc" style="color:${cat.color}">${cat.name}</div>${DIAS.map((d,i)=>`<div class="ghc${WE.includes(i)?' we':''}">${d}</div>`).join('')}</div>`;
+ const wDates=weekDates(wo);
+let html=`<div class="pgrid-header" style="grid-template-columns:${cols}"><div class="ghc" style="color:${cat.color}">${cat.name}</div>${wDates.map((d,i)=>`<div class="ghc${WE.includes(i)?' we':''}">${DIAS_ES[i]} ${d.getDate()}</div>`).join('')}</div>`;
   (cat.equips||[]).forEach(eq=>{
     const trainDays=getTrainDays(cat.name+'|'+eq.n);const eqColor=getEqColor(cat,eq);const eqLight=getEqLight(cat,eq);
     html+=`<div class="trow" style="grid-template-columns:${cols};border-left:3px solid ${eqColor}"><div class="tname">${eq.n}<span class="gbadge b${eq.g}">${eq.g==='m'?'M':'F'}</span></div>`;
