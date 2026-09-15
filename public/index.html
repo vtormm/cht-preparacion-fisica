@@ -782,7 +782,7 @@ function renderCal(calId){
   const firstDay=new Date(year,month,1);const daysInMonth=new Date(year,month+1,0).getDate();
   let startDow=firstDay.getDay()-1;if(startDow<0)startDow=6;
   const selOff=isEnt?ST.entWeekOff:ST.weekOff;
-  const selMon=new Date();selMon.setDate(selMon.getDate()-selMon.getDay()+1+selOff*7);selMon.setHours(0,0,0,0);
+  const selMon.setDate(selMon.getDate()-(selMon.getDay()||7)+1+selOff*7);
   const selSun=new Date(selMon);selSun.setDate(selMon.getDate()+6);
   const MESOS=['Gener','Febrer','Març','Abril','Maig','Juny','Juliol','Agost','Setembre','Octubre','Novembre','Desembre'];
   const DOWS=['Dl','Dm','Dc','Dj','Dv','Ds','Dg'];
@@ -802,8 +802,8 @@ function calNav(calId,dir){
 }
 function calSelectDay(calId,year,month,day){
   const clicked=new Date(year,month,day);const now=new Date();now.setHours(0,0,0,0);
-  const nowMon=new Date(now);nowMon.setDate(now.getDate()-now.getDay()+1);
-  const clickMon=new Date(clicked);clickMon.setDate(clicked.getDate()-clicked.getDay()+1);
+  const nowMon.setDate(now.getDate()-(now.getDay()||7)+1);
+  const clickMon.setDate(clicked.getDate()-(clicked.getDay()||7)+1);
   const diff=Math.round((clickMon-nowMon)/(7*24*3600*1000));
   const isEnt=calId==='ent-cal';
   if(isEnt){ST.entWeekOff=diff;updateEntLabel();ST.expandedDays={};renderEntContent();}
@@ -828,7 +828,7 @@ async function toggleTrainDay(di,btn){
 }
 
 function wLabel(o){
-  const d=new Date();d.setDate(d.getDate()-d.getDay()+1+o*7);const d2=new Date(d);d2.setDate(d.getDate()+6);
+  const d.setDate(d.getDate()-(d.getDay()||7)+1+o*7);
   const f=x=>x.toLocaleDateString('ca-ES',{day:'numeric',month:'short'});return f(d)+' – '+f(d2);
 }
 function updateLabels(){
