@@ -311,6 +311,17 @@ input[type=range]{accent-color:var(--brand);cursor:pointer}
 .ecar{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 -12px 6px;padding:2px 12px 10px;-webkit-overflow-scrolling:touch}
 .ecard{flex:0 0 76%;scroll-snap-align:center;border-radius:18px;padding:14px;background:var(--surface);border:2px solid var(--border);cursor:pointer;min-height:112px}
 .ecard.sel{border-color:var(--tc,#C0152A)}
+
+.eh-lbl{flex:1;background:none;border:0;color:#fff;font-weight:600;font-size:13px;cursor:pointer}
+.ecard{position:relative;flex:0 0 72%;min-height:150px;display:flex;flex-direction:column;overflow:hidden;background:linear-gradient(155deg,color-mix(in srgb,var(--k) 28%,var(--surface)),var(--surface) 75%);border:2px solid color-mix(in srgb,var(--k) 40%,var(--border))}
+.ecard::before{content:'';position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--k)}
+.ecard.sel{border-color:var(--k);box-shadow:0 0 0 2px var(--k)}
+.ecard.off{opacity:.5;min-height:150px;background:var(--surface)}.ecard.dash{border-style:dashed;background:var(--surface)}
+.eico{position:absolute;right:12px;top:10px;font-size:40px;line-height:1}
+.eday{font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text2);padding-left:6px}.eday b{color:var(--k);margin-left:4px}
+.etit{font-size:20px;font-weight:800;margin:8px 0 6px 6px;padding-right:50px;line-height:1.15}
+.epips{display:flex;align-items:center;gap:3px;margin-left:6px}.epips i{width:18px;height:6px;border-radius:3px}.epips small{margin-left:6px;font-size:11px;font-weight:700;color:var(--text2)}
+.efoot{margin-top:auto;padding:10px 0 0 6px}.est{display:inline-block;padding:4px 10px;border-radius:99px;font-size:11px;font-weight:700}
 </style>
 </head>
 <body>
@@ -534,19 +545,8 @@ input[type=range]{accent-color:var(--brand);cursor:pointer}
         <button class="ent-tab" id="etab-b" onclick="setEntTab('biblioteca')">📚 Biblioteca</button>
       </div>
       <div id="etab-setmana-content">
-        <div id="ent-home"></div>
-        <div class="card" style="padding:10px 14px">
-          <div class="ent-week-nav" style="position:relative">
-            <button class="wbtn" onclick="changeEntWeek(-1)"><i class="ti ti-chevron-left"></i></button>
-            <button class="week-lbl-btn" id="ent-week-lbl" onclick="toggleCal('ent-cal')">—</button>
-            <button class="wbtn" onclick="changeEntWeek(1)"><i class="ti ti-chevron-right"></i></button>
-            <div id="ent-cal" class="cal-dropdown hidden"></div>
-          </div>
-          <div style="margin-top:8px">
-            <div class="sec-label" style="margin-bottom:6px">Dies d'entrenament del meu equip</div>
-            <div class="train-days-row" id="train-days-selector"></div>
-          </div>
-        </div>
+        <div style="position:relative"><div id="ent-home"></div><div id="ent-cal" class="cal-dropdown hidden" style="top:56px"></div></div>
+        <div class="card hidden" id="ent-train-card" style="padding:10px 14px"><div class="sec-label" style="margin-bottom:6px">Dies d'entrenament del meu equip</div><div class="train-days-row" id="train-days-selector"></div></div>
         <div id="ent-content"></div>
       </div>
       <div id="etab-biblioteca-content" class="hidden">
@@ -1572,8 +1572,10 @@ function entDefaultDay(){
   for(let i=0;i<7;i++){if(gS(sk(c,n,i,ST.entWeekOff)))return i;}return 0;
 }
 function selEntDay(di){ST.entDay=di;renderEntContent();}
-function toggleEntCfg(){['ent-sel-card','fav-row'].forEach(id=>document.getElementById(id).classList.toggle('hidden'));}
-function hideEntCfg(){['ent-sel-card','fav-row'].forEach(id=>{const e=document.getElementById(id);if(e)e.classList.add('hidden');});}
+function toggleEntCfg(){['ent-sel-card','fav-row','ent-train-card'].forEach(id=>document.getElementById(id).classList.toggle('hidden'));}
+function hideEntCfg(){['ent-sel-card','fav-row','ent-train-card'].forEach(id=>{const e=document.getElementById(id);if(e)e.classList.add('hidden');});}
+const TIPO_COL={'p-hiit':'#EF4444','p-fuerza':'#3B82F6','p-funcional':'#14B8A6','p-carrera':'#22C55E','p-gym':'#A855F7','p-descanso':'#64748B','p-libre':'#F59E0B'};
+const TIPO_ICO={'p-hiit':'⚡','p-fuerza':'🏋️','p-funcional':'🤸','p-carrera':'🏃','p-gym':'💪','p-descanso':'😴','p-libre':'✏️'};
 function renderEntHome(){
   const el=document.getElementById('ent-home');if(!el||!ST.entEquipo)return;
   if(ST.entDay==null)ST.entDay=entDefaultDay();
@@ -1586,16 +1588,19 @@ function renderEntHome(){
     if(s&&!p){plan++;if(ans)done++;}
     const cls=p?'match':s?(ans?'done':'pend'):'';
     strip+=`<button class="hd ${cls}${di===today?' today':''}${di===ST.entDay?' sel':''}" onclick="selEntDay(${di})"><span class="hc">${['L','M','X','J','V','S','D'][di]}</span><small>${DIAS[di]}</small></button>`;
-    let body;
-    if(p)body=`<span class="spill p-partido" style="display:inline-block;width:auto;padding:4px 10px;font-size:11px">🤾 Partit</span>`;
-    else if(s){const c2=s.esLliure?'p-libre':(TIPO_CLS[s.tipo]||'p-descanso');
-      body=`<div style="font-size:16px;font-weight:800;margin:4px 0">${s.tipo}</div>${s.carga?`<span style="font-size:11px;font-weight:700;color:${CC[s.carga]||'#888'}">● Càrrega ${CARGA_LBL[s.carga]||s.carga}</span>`:''}<div style="font-size:11px;margin-top:6px;color:var(--text2)">${ans?(fb.status==='ok'?'✅ Feta':fb.status==='parcial'?'⚠️ Parcial':'❌ No feta'):'Pendent de feedback'}</div>`;}
-    else body=`<div style="font-size:13px;color:var(--text3);margin-top:6px">${WE.includes(di)?'Cap activitat':'Sense sessió'}</div>`;
-    cards+=`<div class="ecard${di===ST.entDay?' sel':''}" onclick="selEntDay(${di})"><div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase">${DIAS_FULL[di]}${di===today?' · AVUI':''}</div>${body}</div>`;
+    const isTrain=getTrainDays(ST.entEquipo).includes(di);
+    let kc='#64748B',ico='😴',title='Descans',extra='',stat='',cl=' off';
+    if(p){kc='#EAB308';ico='🤾';title='Partit';cl='';stat='<span class="est" style="background:#EAB308;color:#422006">Dia de partit</span>';}
+    else if(s){const tc=s.esLliure?'p-libre':(TIPO_CLS[s.tipo]||'p-descanso');kc=TIPO_COL[tc];ico=TIPO_ICO[tc];title=s.tipo;cl='';
+      const lv=['baja','media','alta','max'].indexOf(s.carga);
+      extra=s.carga?`<div class="epips">${[0,1,2,3].map(i=>`<i style="background:${i<=lv?CC[s.carga]:'rgba(128,128,128,.3)'}"></i>`).join('')}<small>${CARGA_LBL[s.carga]||s.carga}</small></div>`:'';
+      stat=ans?(fb.status==='ok'?'<span class="est" style="background:#22c55e;color:#fff">✓ Feta</span>':fb.status==='parcial'?'<span class="est" style="background:#f59e0b;color:#fff">⚠ Parcial</span>':'<span class="est" style="background:#ef4444;color:#fff">✕ No feta</span>'):'<span class="est" style="background:rgba(128,128,128,.25);color:var(--text2)">⏳ Pendent</span>';}
+    else if(isTrain){ico='📅';title='Per assignar';cl=' dash';}
+    cards+=`<div class="ecard${cl}${di===ST.entDay?' sel':''}" style="--k:${kc}" onclick="selEntDay(${di})"><span class="eico">${ico}</span><div class="eday">${DIAS_FULL[di]}${di===today?' <b>AVUI</b>':''}</div><div class="etit">${title}</div>${extra}<div class="efoot">${stat}</div></div>`;
   }
   const pct=plan?Math.round(done/plan*100):0;
   el.style.setProperty('--tc',col);
-  el.innerHTML=`<div class="eh"><div class="eh-top"><button class="eh-ico" onclick="changeEntWeek(-1)">‹</button><small>${wLabel(wo)}${wo===0?' · actual':''}</small><button class="eh-ico" onclick="changeEntWeek(1)">›</button><button class="eh-ico" onclick="toggleEntCfg()" title="Ajustos">⚙️</button></div><h2>${team}</h2><small>${catName}</small><div class="hstrip">${strip}</div></div>
+  el.innerHTML=`<div class="eh"><div class="eh-top"><button class="eh-ico" onclick="changeEntWeek(-1)">‹</button><button class="eh-lbl" onclick="toggleCal('ent-cal')">${wLabel(wo)}${wo===0?' · actual':''} ▾</button><button class="eh-ico" onclick="changeEntWeek(1)">›</button><button class="eh-ico" onclick="toggleEntCfg()" title="Ajustos">⚙️</button></div><h2>${team}</h2><small>${catName}</small><div class="hstrip">${strip}</div></div>
   <div class="card eprog"><div class="ering" style="--p:${pct}"><b>${pct}%</b></div><div><div style="font-weight:800">${done} de ${plan} sessions amb feedback</div><div style="font-size:12px;color:${plan&&done===plan?'#16a34a':'var(--text2)'}">${plan&&done===plan?'Setmana completada! 🔥':plan?'Falten '+(plan-done):'Sense sessions aquesta setmana'}</div></div></div>
   <div class="ecar">${cards}</div>`;
   const sel=el.querySelector('.ecard.sel');if(sel)sel.scrollIntoView({inline:'center',block:'nearest'});
