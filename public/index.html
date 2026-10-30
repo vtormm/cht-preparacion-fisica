@@ -294,6 +294,23 @@ input[type=range]{accent-color:var(--brand);cursor:pointer}
 .pres-action{flex:2;padding:14px;font-size:15px;font-weight:900;border:none;border-radius:10px;cursor:pointer;background:#DC2626;color:#fff}
 .pres-start-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:30px 20px;text-align:center;gap:12px}
 .pres-end-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:30px 20px;text-align:center;gap:12px}
+
+/* Inici entrenador */
+.eh{border-radius:20px;padding:14px 16px 12px;color:#fff;margin-bottom:10px;background:linear-gradient(135deg,var(--tc,#C0152A),#0b1020 150%)}
+.eh-top{display:flex;align-items:center;gap:8px}.eh-top small{flex:1;text-align:center;opacity:.9;font-weight:600}
+.eh h2{font-size:26px;line-height:1.15;margin:10px 0 2px}.eh>small{opacity:.8;font-size:12px}
+.eh-ico{background:rgba(255,255,255,.18);border:0;color:#fff;min-width:34px;height:34px;border-radius:50%;font-size:18px;cursor:pointer}
+.hstrip{display:flex;justify-content:space-between;margin-top:14px}
+.hd{background:none;border:0;color:#fff;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;cursor:pointer;padding:0}
+.hc{width:36px;height:36px;border-radius:50%;border:2px solid rgba(255,255,255,.3);display:grid;place-items:center;font-weight:700;font-size:13px}
+.hd.pend .hc{border-color:#fff}.hd.done .hc{background:#22c55e;border-color:#22c55e}.hd.match .hc{background:#FEF08A;color:#713F12;border-color:#FEF08A}
+.hd.sel .hc{box-shadow:0 0 0 3px rgba(255,255,255,.6)}.hd.today small{font-weight:800}
+.eprog{display:flex;align-items:center;gap:14px}
+.ering{width:56px;height:56px;flex:none;border-radius:50%;display:grid;place-items:center;font-size:13px;position:relative;background:conic-gradient(#22c55e calc(var(--p)*1%),var(--border) 0)}
+.ering::before{content:'';position:absolute;inset:6px;background:var(--surface);border-radius:50%}.ering b{position:relative}
+.ecar{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 -12px 6px;padding:2px 12px 10px;-webkit-overflow-scrolling:touch}
+.ecard{flex:0 0 76%;scroll-snap-align:center;border-radius:18px;padding:14px;background:var(--surface);border:2px solid var(--border);cursor:pointer;min-height:112px}
+.ecard.sel{border-color:var(--tc,#C0152A)}
 </style>
 </head>
 <body>
@@ -493,7 +510,7 @@ input[type=range]{accent-color:var(--brand);cursor:pointer}
 
 <div id="view-entrenador">
   <div class="main-ent">
-    <div class="card"><div class="sec-label">Selecciona el teu equip</div><div class="eq-selector" id="ent-selector"></div></div>
+    <div class="card" id="ent-sel-card"><div class="sec-label">Selecciona el teu equip</div><div class="eq-selector" id="ent-selector"></div></div>
     <div id="ent-placeholder" style="text-align:center;padding:40px 20px;color:var(--text3)">
       <i class="ti ti-users" style="font-size:48px;display:block;margin-bottom:12px"></i>
       <div style="font-size:14px;font-weight:600;margin-bottom:6px">Selecciona el teu equip</div>
@@ -508,7 +525,7 @@ input[type=range]{accent-color:var(--brand);cursor:pointer}
         </div>
         <button class="notif-banner-close" onclick="dismissNotif()">×</button>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <div id="fav-row" style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
         <button class="fav-btn" id="fav-toggle-btn" onclick="toggleFavEquip()">☆ Marcar com a favorit</button>
         <span style="font-size:10px;color:var(--text3)">L'app s'obrirà directament aquí</span>
       </div>
@@ -517,6 +534,7 @@ input[type=range]{accent-color:var(--brand);cursor:pointer}
         <button class="ent-tab" id="etab-b" onclick="setEntTab('biblioteca')">📚 Biblioteca</button>
       </div>
       <div id="etab-setmana-content">
+        <div id="ent-home"></div>
         <div class="card" style="padding:10px 14px">
           <div class="ent-week-nav" style="position:relative">
             <button class="wbtn" onclick="changeEntWeek(-1)"><i class="ti ti-chevron-left"></i></button>
@@ -1003,7 +1021,7 @@ function setCatIdx(i){ST.catIdx=i;initCatRow();renderPlanner();}
 function initCatRow(){document.getElementById('cat-row').innerHTML=getCats().map((c,i)=>{const active=i===ST.catIdx;return `<button class="cat-pill" onclick="setCatIdx(${i})" style="background:${active?c.color:c.light};color:${active?'#fff':c.color};border-color:${active?c.color:'transparent'}">${c.name}</button>`;}).join('');}
 function currentCat(){return getCats()[ST.catIdx]||getCats()[0];}
 function changeWeek(d){ST.weekOff+=d;updateLabels();renderPlanner();}
-function changeEntWeek(d){ST.entWeekOff+=d;updateEntLabel();ST.expandedDays={};renderEntContent();}
+function changeEntWeek(d){ST.entWeekOff+=d;ST.entDay=null;updateEntLabel();ST.expandedDays={};renderEntContent();}
 
 function openCopyWeekModal(){ST.copyTargetOff=ST.weekOff+1;document.getElementById('copy-target-lbl').textContent=wLabel(ST.copyTargetOff);document.getElementById('copy-week-overlay').classList.remove('hidden');}
 function closeCopyWeekModal(){document.getElementById('copy-week-overlay').classList.add('hidden');}
@@ -1307,15 +1325,15 @@ function renderEntSelector(){
   document.getElementById('ent-selector').innerHTML=getCats().flatMap(cat=>(cat.equips||[]).map(eq=>{const id=cat.name+'|'+eq.n;const active=ST.entEquipo===id;const eqColor=getEqColor(cat,eq);const eqLight=getEqLight(cat,eq);return `<button class="eq-btn${active?' active':''}" style="${active?`background:${eqColor};border-color:${eqColor};color:#fff`:`color:${eqColor};border-color:${eqLight}`}" onclick="selEntEquipo('${esc(cat.name)}','${esc(eq.n)}')">${eq.n}</button>`;})).join('');
 }
 function selEntEquipo(catName,name){
-  ST.entEquipo=catName+'|'+name;ST.entCat=catName;ST.expandedDays={};
+  ST.entEquipo=catName+'|'+name;ST.entCat=catName;ST.expandedDays={};ST.entDay=null;if(!getFav())setFav(ST.entEquipo);
   document.getElementById('ent-placeholder').classList.add('hidden');
   document.getElementById('ent-main').classList.remove('hidden');
   document.getElementById('wa-fab').classList.remove('hidden');
   updateEntLabel();setEntTab(ST.entTab);renderEntSelector();renderTrainDaysSelector();renderEntContent();
-  renderFavBtn();
+  renderFavBtn();hideEntCfg();
   setTimeout(checkNewSessions, 600);
 }
-function toggleDayDetail(keyId){ST.expandedDays[keyId]=!ST.expandedDays[keyId];renderEntContent();}
+function toggleDayDetail(keyId){ST.expandedDays[keyId]=ST.expandedDays[keyId]===false;renderEntContent();}
 async function clearFeedback(catName,team,di,wo){if(!confirm('Eliminar tot el feedback d\'aquesta sessió?'))return;const key=sk(catName,team,di,wo);delete DB.feedbacks[fk(key)];renderEntContent();if(ST.mode==='victor')renderPlanner();toast('🗑️ Feedback eliminat');try{await fbDel('/feedbacks/'+fk(key));}catch(e){dbg('clearFb ERR: '+e.message);}}
 
 function renderEntContent(){
@@ -1323,10 +1341,11 @@ function renderEntContent(){
   const [catName,team]=ST.entEquipo.split('|');const wo=ST.entWeekOff;
   const cat=getCatByName(catName)||{color:'#C0152A',light:'#FDEAEA',name:catName,equips:[]};
   const eqObj=(cat.equips||[]).find(e=>e.n===team)||{};const eqColor=getEqColor(cat,eqObj);const eqLight=getEqLight(cat,eqObj);
-  updateEntLabel();const trainDays=getTrainDays(ST.entEquipo);
+  renderEntHome();updateEntLabel();const trainDays=getTrainDays(ST.entEquipo);
   let html=`<div class="card" style="border-top:3px solid ${eqColor}"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><div><span style="font-size:15px;font-weight:700">${team}</span><span style="font-size:11px;color:${eqColor};font-weight:700;margin-left:8px;background:${eqLight};padding:2px 8px;border-radius:10px">${catName}</span></div><span style="font-size:11px;color:var(--text2)">${wLabel(wo)}</span></div>`;
   for(let di=0;di<7;di++){
-    const dia=DIAS_FULL[di];const isWE=WE.includes(di);const isTrainDay=trainDays.includes(di);const key=sk(catName,team,di,wo);const s=gS(key);const fb=gF(key);const isP=gP(key);const keyId=fk(key);const expanded=!!ST.expandedDays[keyId];
+    if(di!==ST.entDay)continue;
+    const dia=DIAS_FULL[di];const isWE=WE.includes(di);const isTrainDay=trainDays.includes(di);const key=sk(catName,team,di,wo);const s=gS(key);const fb=gF(key);const isP=gP(key);const keyId=fk(key);const expanded=ST.expandedDays[keyId]!==false;
     const rowStyle=isTrainDay&&!isWE?`border-left:3px solid ${eqColor};padding-left:8px;background:${eqLight}`:'';
     html+=`<div class="wday-row" style="${rowStyle}"><div class="wday-top"><span class="wday-name${isWE?' we':''}">${dia}${isTrainDay&&!isWE?` <span style="font-size:9px;background:${eqColor};color:#fff;padding:1px 5px;border-radius:8px;margin-left:3px">Entren</span>`:''}</span>`;
     if(isP){html+=`<span class="spill p-partido" style="flex:none;padding:4px 10px;font-size:11px">🤾 Partit</span><button class="partido-btn active" style="margin-left:auto" onclick="togglePartit('${esc(catName)}','${esc(team)}',${di},${wo})">✅ Treure</button>`;}
@@ -1543,6 +1562,45 @@ function renderFavBtn(){
   btn.innerHTML=isFav?'⭐ Equip favorit':'☆ Marcar com a favorit';
 }
 
+
+// ── Inici entrenador (nou) ──────────────────────────────────────────
+const CARGA_LBL={baja:'Baixa',media:'Mitja',alta:'Alta',max:'Màxima'};
+function entToday(){return ST.entWeekOff===0?(new Date().getDay()+6)%7:-1;}
+function entDefaultDay(){
+  const t=entToday();if(t>=0)return t;
+  const [c,n]=ST.entEquipo.split('|');
+  for(let i=0;i<7;i++){if(gS(sk(c,n,i,ST.entWeekOff)))return i;}return 0;
+}
+function selEntDay(di){ST.entDay=di;renderEntContent();}
+function toggleEntCfg(){['ent-sel-card','fav-row'].forEach(id=>document.getElementById(id).classList.toggle('hidden'));}
+function hideEntCfg(){['ent-sel-card','fav-row'].forEach(id=>{const e=document.getElementById(id);if(e)e.classList.add('hidden');});}
+function renderEntHome(){
+  const el=document.getElementById('ent-home');if(!el||!ST.entEquipo)return;
+  if(ST.entDay==null)ST.entDay=entDefaultDay();
+  const [catName,team]=ST.entEquipo.split('|');const wo=ST.entWeekOff;
+  const cat=getCatByName(catName)||{color:'#C0152A',equips:[]};
+  const eq=(cat.equips||[]).find(e=>e.n===team)||{};const col=getEqColor(cat,eq);
+  const today=entToday();let plan=0,done=0,strip='',cards='';
+  for(let di=0;di<7;di++){
+    const k=sk(catName,team,di,wo);const s=gS(k),fb=gF(k),p=gP(k);const ans=!!(fb&&fb.status);
+    if(s&&!p){plan++;if(ans)done++;}
+    const cls=p?'match':s?(ans?'done':'pend'):'';
+    strip+=`<button class="hd ${cls}${di===today?' today':''}${di===ST.entDay?' sel':''}" onclick="selEntDay(${di})"><span class="hc">${['L','M','X','J','V','S','D'][di]}</span><small>${DIAS[di]}</small></button>`;
+    let body;
+    if(p)body=`<span class="spill p-partido" style="display:inline-block;width:auto;padding:4px 10px;font-size:11px">🤾 Partit</span>`;
+    else if(s){const c2=s.esLliure?'p-libre':(TIPO_CLS[s.tipo]||'p-descanso');
+      body=`<div style="font-size:16px;font-weight:800;margin:4px 0">${s.tipo}</div>${s.carga?`<span style="font-size:11px;font-weight:700;color:${CC[s.carga]||'#888'}">● Càrrega ${CARGA_LBL[s.carga]||s.carga}</span>`:''}<div style="font-size:11px;margin-top:6px;color:var(--text2)">${ans?(fb.status==='ok'?'✅ Feta':fb.status==='parcial'?'⚠️ Parcial':'❌ No feta'):'Pendent de feedback'}</div>`;}
+    else body=`<div style="font-size:13px;color:var(--text3);margin-top:6px">${WE.includes(di)?'Cap activitat':'Sense sessió'}</div>`;
+    cards+=`<div class="ecard${di===ST.entDay?' sel':''}" onclick="selEntDay(${di})"><div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase">${DIAS_FULL[di]}${di===today?' · AVUI':''}</div>${body}</div>`;
+  }
+  const pct=plan?Math.round(done/plan*100):0;
+  el.style.setProperty('--tc',col);
+  el.innerHTML=`<div class="eh"><div class="eh-top"><button class="eh-ico" onclick="changeEntWeek(-1)">‹</button><small>${wLabel(wo)}${wo===0?' · actual':''}</small><button class="eh-ico" onclick="changeEntWeek(1)">›</button><button class="eh-ico" onclick="toggleEntCfg()" title="Ajustos">⚙️</button></div><h2>${team}</h2><small>${catName}</small><div class="hstrip">${strip}</div></div>
+  <div class="card eprog"><div class="ering" style="--p:${pct}"><b>${pct}%</b></div><div><div style="font-weight:800">${done} de ${plan} sessions amb feedback</div><div style="font-size:12px;color:${plan&&done===plan?'#16a34a':'var(--text2)'}">${plan&&done===plan?'Setmana completada! 🔥':plan?'Falten '+(plan-done):'Sense sessions aquesta setmana'}</div></div></div>
+  <div class="ecar">${cards}</div>`;
+  const sel=el.querySelector('.ecard.sel');if(sel)sel.scrollIntoView({inline:'center',block:'nearest'});
+}
+
 // ── WhatsApp ──────────────────────────────────────────────────────
 const WA_NUMBER='34645181229';
 function openWhatsApp(){
@@ -1611,10 +1669,8 @@ document.addEventListener('DOMContentLoaded',async()=>{
       if(parts.length===2){
         const [favCat,favName]=parts;
         // Espera que les dades carreguin abans de seleccionar
-        setTimeout(()=>{
-          selEntEquipo(favCat,favName);
-          toast(`⭐ Benvingut, ${favName}!`);
-        },1200);
+        const ok=getCats().some(c=>c.name===favCat&&(c.equips||[]).some(e=>e.n===favName));
+        if(ok)selEntEquipo(favCat,favName);else clearFav();
       }
     }
   }
