@@ -271,6 +271,16 @@ input[type=range]{accent-color:var(--brand);cursor:pointer}
 .fav-btn.active{background:#FEF08A;border-color:#A16207;color:#713F12}
 /* WhatsApp FAB */
 .wa-fab{position:fixed;bottom:calc(var(--bot-h,64px) + 16px);right:16px;z-index:200;background:#25D366;color:#fff;border:none;border-radius:50%;width:52px;height:52px;font-size:26px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;transition:transform .15s}
+.ent-new .ent-pick{display:none}.ent-new.ent-pick-open .ent-pick{display:block}
+.ent-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}.ent-hd b{font-size:18px}.ent-hd .pill{font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;margin-left:8px}
+.ent-set{border:1px solid var(--border);background:var(--surface);border-radius:20px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;color:inherit}
+.ent-strip{display:flex;gap:4px;margin:10px 0}.ent-chip{flex:1;border:2px solid var(--border);background:var(--surface);border-radius:14px;padding:6px 0;font-size:11px;font-weight:700;color:inherit;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px}.ent-chip i{font-style:normal;font-size:14px;min-height:18px}
+.ent-chip.has{border-color:var(--c)}.ent-chip.ok{background:#22c55e;border-color:#22c55e;color:#fff}.ent-chip.par{background:#eab308;border-color:#eab308;color:#fff}.ent-chip.no{background:#ef4444;border-color:#ef4444;color:#fff}.ent-chip.today{box-shadow:0 0 0 2px var(--c)}
+.ent-prog{display:flex;align-items:center;gap:14px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:16px;margin-bottom:10px}
+.ent-ring{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;flex:none}.ent-ring span{width:42px;height:42px;border-radius:50%;background:var(--surface);display:grid;place-items:center;font-size:12px;font-weight:800}
+.ent-car{position:relative;display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;padding:2px 2px 10px;-webkit-overflow-scrolling:touch}.ent-slide{flex:0 0 min(90%,440px);scroll-snap-align:center}
+.ent-slide .wday-row{height:100%;box-sizing:border-box;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:14px;margin:0}.ent-slide .wday-top{flex-wrap:wrap;gap:6px}
+.rpe-track input[type=range]{touch-action:pan-y}
 .wa-fab:active{transform:scale(.92)}
 .wa-fab.hidden{display:none}
 /* Mode Presentació */
@@ -493,7 +503,7 @@ input[type=range]{accent-color:var(--brand);cursor:pointer}
 
 <div id="view-entrenador">
   <div class="main-ent">
-    <div class="card"><div class="sec-label">Selecciona el teu equip</div><div class="eq-selector" id="ent-selector"></div></div>
+    <div class="ent-pick"><div class="card"><div class="sec-label">Selecciona el teu equip</div><div class="eq-selector" id="ent-selector"></div></div>
     <div id="ent-placeholder" style="text-align:center;padding:40px 20px;color:var(--text3)">
       <i class="ti ti-users" style="font-size:48px;display:block;margin-bottom:12px"></i>
       <div style="font-size:14px;font-weight:600;margin-bottom:6px">Selecciona el teu equip</div>
@@ -511,7 +521,8 @@ input[type=range]{accent-color:var(--brand);cursor:pointer}
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
         <button class="fav-btn" id="fav-toggle-btn" onclick="toggleFavEquip()">☆ Marcar com a favorit</button>
         <span style="font-size:10px;color:var(--text3)">L'app s'obrirà directament aquí</span>
-      </div>
+        <button class="fav-btn" style="margin-left:auto" onclick="toggleEntView()">Vista clàssica/nova</button>
+      </div></div>
       <div class="ent-tab-row">
         <button class="ent-tab active" id="etab-s" onclick="setEntTab('setmana')">📅 Setmana</button>
         <button class="ent-tab" id="etab-b" onclick="setEntTab('biblioteca')">📚 Biblioteca</button>
@@ -843,9 +854,10 @@ function updateLabels(){
 function updateEntLabel(){
   const el=document.getElementById('ent-week-lbl');if(el){el.textContent=wLabel(ST.entWeekOff);el.className='week-lbl-btn'+(ST.entWeekOff===0?' current-week':'');}
 }
+document.addEventListener('focusout',e=>{if(ST._pendingRender&&e.target.closest&&e.target.closest('#ent-content')){ST._pendingRender=false;setTimeout(renderEntContent,60);}});
 function renderAll(){
   if(ST.mode==='victor'){renderPlanner();renderFbList();}
-  else if(ST.entEquipo)renderEntContent();
+  else if(ST.entEquipo){const a=document.activeElement;if(a&&a.closest&&a.closest('#ent-content')&&/^(TEXTAREA|INPUT)$/.test(a.tagName))ST._pendingRender=true;else renderEntContent();}
   if(ST.entTab==='biblioteca')renderBiblioteca('e');
 }
 
@@ -1306,7 +1318,7 @@ function renderCargas(){
 function renderEntSelector(){
   document.getElementById('ent-selector').innerHTML=getCats().flatMap(cat=>(cat.equips||[]).map(eq=>{const id=cat.name+'|'+eq.n;const active=ST.entEquipo===id;const eqColor=getEqColor(cat,eq);const eqLight=getEqLight(cat,eq);return `<button class="eq-btn${active?' active':''}" style="${active?`background:${eqColor};border-color:${eqColor};color:#fff`:`color:${eqColor};border-color:${eqLight}`}" onclick="selEntEquipo('${esc(cat.name)}','${esc(eq.n)}')">${eq.n}</button>`;})).join('');
 }
-function selEntEquipo(catName,name){
+function selEntEquipo(catName,name){document.getElementById('view-entrenador').classList.remove('ent-pick-open');
   ST.entEquipo=catName+'|'+name;ST.entCat=catName;ST.expandedDays={};
   document.getElementById('ent-placeholder').classList.add('hidden');
   document.getElementById('ent-main').classList.remove('hidden');
@@ -1325,8 +1337,9 @@ function renderEntContent(){
   const eqObj=(cat.equips||[]).find(e=>e.n===team)||{};const eqColor=getEqColor(cat,eqObj);const eqLight=getEqLight(cat,eqObj);
   updateEntLabel();const trainDays=getTrainDays(ST.entEquipo);
   let html=`<div class="card" style="border-top:3px solid ${eqColor}"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><div><span style="font-size:15px;font-weight:700">${team}</span><span style="font-size:11px;color:${eqColor};font-weight:700;margin-left:8px;background:${eqLight};padding:2px 8px;border-radius:10px">${catName}</span></div><span style="font-size:11px;color:var(--text2)">${wLabel(wo)}</span></div>`;
+  const days=[];
   for(let di=0;di<7;di++){
-    const dia=DIAS_FULL[di];const isWE=WE.includes(di);const isTrainDay=trainDays.includes(di);const key=sk(catName,team,di,wo);const s=gS(key);const fb=gF(key);const isP=gP(key);const keyId=fk(key);const expanded=!!ST.expandedDays[keyId];
+    const _s=html.length;const dia=DIAS_FULL[di];const isWE=WE.includes(di);const isTrainDay=trainDays.includes(di);const key=sk(catName,team,di,wo);const s=gS(key);const fb=gF(key);const isP=gP(key);const keyId=fk(key);const expanded=!!ST.expandedDays[keyId];
     const rowStyle=isTrainDay&&!isWE?`border-left:3px solid ${eqColor};padding-left:8px;background:${eqLight}`:'';
     html+=`<div class="wday-row" style="${rowStyle}"><div class="wday-top"><span class="wday-name${isWE?' we':''}">${dia}${isTrainDay&&!isWE?` <span style="font-size:9px;background:${eqColor};color:#fff;padding:1px 5px;border-radius:8px;margin-left:3px">Entren</span>`:''}</span>`;
     if(isP){html+=`<span class="spill p-partido" style="flex:none;padding:4px 10px;font-size:11px">🤾 Partit</span><button class="partido-btn active" style="margin-left:auto" onclick="togglePartit('${esc(catName)}','${esc(team)}',${di},${wo})">✅ Treure</button>`;}
@@ -1345,13 +1358,36 @@ function renderEntContent(){
           <button class="clear-fb-btn" onclick="clearFeedback('${esc(catName)}','${esc(team)}',${di},${wo})">🗑️ Treure feedback</button>
         </div>
         ${rpeSliderHTML(k2,rpeVal,catName,team,di,wo)}
-        <textarea class="fb-note" id="fbn-${k2}" placeholder="Com ha anat la sessió?">${fb.note||''}</textarea>
+        <textarea class="fb-note" id="fbn-${k2}" placeholder="Com ha anat la sessió?" onblur="if(this.value!==((gF(sk('${esc(catName)}','${esc(team)}',${di},${wo}))||{}).note||''))saveFbNote('${esc(catName)}','${esc(team)}',${di},${wo})">${fb.note||''}</textarea>
         <button class="save-note-btn" onclick="saveFbNote('${esc(catName)}','${esc(team)}',${di},${wo})">Guardar feedback</button>
       </div>`;
     }
-    html+='</div>';
+    html+='</div>';days[di]=html.slice(_s);
   }
+  if(ST.entView==='new'){renderEntWeekNew(cont,days,{catName,team,wo,eqColor,eqLight});return;}
   html+='</div>';cont.innerHTML=html;
+}
+const _DS=['Dll','Dm','Dc','Dj','Dv','Ds','Dg'];
+function entGoDay(di){const c=document.getElementById('ent-car'),s=c&&c.children[di];if(s)c.scrollTo({left:s.offsetLeft-(c.clientWidth-s.clientWidth)/2,behavior:'smooth'});}
+function toggleEntPick(){document.getElementById('view-entrenador').classList.toggle('ent-pick-open');}
+function applyEntView(){const v=document.getElementById('view-entrenador');v.classList.toggle('ent-new',ST.entView==='new');if(ST.entView!=='new')v.classList.remove('ent-pick-open');}
+function toggleEntView(){ST.entView=ST.entView==='new'?'old':'new';try{localStorage.setItem('cht_ent_view',ST.entView);}catch(e){}applyEntView();renderEntContent();}
+function renderEntWeekNew(cont,days,x){
+  const {catName,team,wo,eqColor,eqLight}=x;const td=(new Date().getDay()+6)%7;let y=0,n=0,pl=0,chips='';
+  for(let di=0;di<7;di++){
+    const key=sk(catName,team,di,wo),s=gS(key),fb=gF(key),p=gP(key);let c='',ic='';
+    if(p){c=' has';ic='🤾';}
+    else if(s&&!WE.includes(di)){c=' has';ic='•';pl++;const due=wo<0||(wo===0&&di<=td);if(due){y++;if(fb&&fb.status)n++;}
+      if(fb&&fb.status){c=fb.status==='ok'?' ok':fb.status==='parcial'?' par':' no';ic=fb.status==='ok'?'✓':fb.status==='parcial'?'!':'✕';}}
+    chips+=`<button class="ent-chip${c}${wo===0&&di===td?' today':''}" style="--c:${eqColor}" onclick="entGoDay(${di})"><span>${_DS[di]}</span><i>${ic}</i></button>`;
+  }
+  const pct=y?Math.round(n/y*100):0;
+  const t1=wo>0?`${pl} sessions programades`:(y?`${n} de ${y} sessions amb feedback`:'Cap sessió programada');
+  const t2=wo>0?'':(y&&n===y?'Setmana completada! 🎉':(y?`Et falten ${y-n} per valorar`:''));
+  const old=document.getElementById('ent-car'),ck=ST.entEquipo+'|'+wo,keep=old&&ST._carKey===ck?old.scrollLeft:null;
+  cont.innerHTML=`<div class="ent-hd"><div><b>${team}</b><span class="pill" style="color:${eqColor};background:${eqLight}">${catName}</span></div><button class="ent-set" onclick="toggleEntPick()">⚙️ Ajustos</button></div><div class="ent-strip">${chips}</div><div class="ent-prog"><div class="ent-ring" style="background:conic-gradient(#22c55e ${wo>0?0:pct}%,var(--border) 0)"><span>${wo>0?pl:pct+'%'}</span></div><div><div style="font-weight:700;font-size:14px">${t1}</div><div style="font-size:12px;color:var(--text2)">${t2}</div></div></div><div class="ent-car" id="ent-car">${days.map(h=>`<div class="ent-slide">${h}</div>`).join('')}</div>`;
+  const car=document.getElementById('ent-car');ST._carKey=ck;
+  if(keep!=null)car.scrollLeft=keep;else{const sl=car.children[wo===0?td:0];car.scrollLeft=sl.offsetLeft-(car.clientWidth-sl.clientWidth)/2;}
 }
 
 async function saveFbField(catName,team,di,wo,field,value){const key=sk(catName,team,di,wo);const prev=gF(key)||{};const statusMissing=!prev.status;const data={...prev,[field]:value};if(!data.status)data.status='ok';DB.feedbacks[fk(key)]=data;try{await fbSet('/feedbacks/'+fk(key)+'/'+field,value);if(statusMissing&&field!=='status')await fbSet('/feedbacks/'+fk(key)+'/status','ok');}catch(e){dbg('saveFbField ERR: '+e.message);}}
@@ -1600,12 +1636,12 @@ function dismissNotif(){
 document.addEventListener('DOMContentLoaded',async()=>{
   try{const data=await fbGetAll();if(data?.config)loadConfig(data.config);else applyConfig();if(data?.biblioteca)loadLibreFromDB(data.biblioteca);DB.sessions=(data?.sessions)||{};DB.feedbacks=(data?.feedbacks)||{};DB.partits=(data?.partits)||{};DB.traindays=(data?.traindays)||{};setConnected();}
   catch(e){applyConfig();setDisconnected();}
-  updateLabels();updateEntLabel();
+  ST.entView=(function(){try{return localStorage.getItem('cht_ent_view')||'new';}catch(e){return 'new';}})();applyEntView();updateLabels();updateEntLabel();
   if(sessionStorage.getItem('cht_pin')==='1'){ST.pinVerified=true;activateVictor();}
   else{
     initCatRow();renderEntSelector();renderPlanner();
     // Auto-càrrega equip favorit
-    const fav=getFav();
+    const fav=getFav();if(!fav)document.getElementById('view-entrenador').classList.add('ent-pick-open');
     if(fav){
       const parts=fav.split('|');
       if(parts.length===2){
@@ -1614,7 +1650,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
         setTimeout(()=>{
           selEntEquipo(favCat,favName);
           toast(`⭐ Benvingut, ${favName}!`);
-        },1200);
+        },0);
       }
     }
   }
