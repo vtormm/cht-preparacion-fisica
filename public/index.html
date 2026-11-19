@@ -322,6 +322,7 @@ input[type=range]{accent-color:var(--brand);cursor:pointer}
 .etit{font-size:20px;font-weight:800;margin:8px 0 6px 6px;padding-right:50px;line-height:1.15}
 .epips{display:flex;align-items:center;gap:3px;margin-left:6px}.epips i{width:18px;height:6px;border-radius:3px}.epips small{margin-left:6px;font-size:11px;font-weight:700;color:var(--text2)}
 .efoot{margin-top:auto;padding:10px 0 0 6px}.est{display:inline-block;padding:4px 10px;border-radius:99px;font-size:11px;font-weight:700}
+.rpe-unset .rpe-thumb{opacity:.35}
 </style>
 </head>
 <body>
@@ -350,7 +351,7 @@ input[type=range]{accent-color:var(--brand);cursor:pointer}
       <div class="topbar-title" id="club-name-lbl">Handbol Terrassa</div>
       <div class="topbar-sub">
         <span id="db-dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#aaa;flex-shrink:0"></span>
-        <span id="db-status">Connectant...</span>
+        <span id="db-status">Connectant...</span><span id="pend-badge" class="hidden" style="margin-left:6px;background:#fbbf24;color:#422006;border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700"></span>
         <button class="refresh-btn" id="refresh-btn" onclick="manualRefresh()">↻</button>
       </div>
     </div>
@@ -514,7 +515,6 @@ input[type=range]{accent-color:var(--brand);cursor:pointer}
       </div>
       <div id="cfg-cats"></div>
       <button onclick="saveCatsConfig()" style="width:100%;padding:12px;font-size:14px;font-weight:700;border:none;border-radius:var(--radius-sm);background:var(--brand);color:#fff;cursor:pointer;margin-top:8px">Guardar categories i equips</button>
-      <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border)"><div class="cfg-section-title" style="margin:0 0 8px;border:none;padding:0">🛠️ Migrar dades a setmanes reals</div><button onclick="migrateWeekKeys()" style="width:100%;padding:12px;font-size:13px;font-weight:700;border:1.5px solid var(--border);border-radius:var(--radius-sm);background:transparent;color:var(--text);cursor:pointer">Migrar sessions/feedbacks antics (un sol cop)</button></div>
     </div>
   </div>
 </div>
@@ -668,7 +668,7 @@ const FB='https://cht-preparacionfisica-default-rtdb.europe-west1.firebasedataba
 
 async function fbFetch(url,opts={}){
   return new Promise((resolve,reject)=>{
-    const xhr=new XMLHttpRequest();xhr.open(opts.method||'GET',url);
+    const xhr=new XMLHttpRequest();xhr.open(opts.method||'GET',url);xhr.timeout=30000;xhr.ontimeout=()=>reject(new Error('Timeout'));
     if(opts.headers)Object.entries(opts.headers).forEach(([k,v])=>xhr.setRequestHeader(k,v));
     xhr.onload=()=>{if(xhr.status>=200&&xhr.status<300){try{resolve(JSON.parse(xhr.responseText));}catch(e){resolve(xhr.responseText);}}else{reject(new Error('HTTP '+xhr.status));}};
     xhr.onerror=()=>reject(new Error('Network error'));xhr.send(opts.body||null);
@@ -679,7 +679,7 @@ async function fbDel(path){return fbFetch(FB+path+'.json',{method:'DELETE'});}
 async function fbGetAll(){return fbFetch(FB+'/.json?shallow=false');}
 async function fbGet(path){return fbFetch(FB+path+'.json');}
 
-function dbg(msg){try{const p=document.getElementById('dbg-panel');if(p){p.style.display='block';p.textContent=String(msg).slice(0,1200);}console.log(msg);}catch(e){}}
+function dbg(msg){try{const p=document.getElementById('dbg-panel');if(p&&typeof ST!=='undefined'&&ST.mode==='victor'){p.style.display='block';p.textContent=String(msg).slice(0,1200);}console.log(msg);}catch(e){}}
 window.addEventListener('error',e=>dbg('ERROR: '+e.message));
 window.addEventListener('unhandledrejection',e=>dbg('PROMISE: '+(e.reason?.message||String(e.reason))));
 
@@ -721,16 +721,17 @@ function rpeColor(v){
 
 // Renderitza slider RPE visual amb gradiente
 function rpeSliderHTML(id,val,catName,team,di,wo){
+  const unset=!val;val=val||5;
   const pct=((val-1)/9)*100;
   const col=rpeColor(val);
-  return `<div class="rpe-row">
+  return `<div class="rpe-row${unset?' rpe-unset':''}">
     <div class="rpe-label">
       <span style="font-size:13px;font-weight:700">💪 Esforç percebut (RPE)</span>
-      <span class="rpe-val" id="rpe-val-${id}" style="color:${col}">${val}</span>
+      <span class="rpe-val" id="rpe-val-${id}" style="color:${unset?'var(--text3)':col}">${unset?'—':val}</span>
     </div>
     <div class="rpe-track" style="margin-bottom:6px">
       <input type="range" min="1" max="10" value="${val}"
-        oninput="updateRpeDisplay('${id}',this.value)"
+        oninput="updateRpeDisplay('${id}',this.value)" onpointerup="if(this.closest('.rpe-unset')){updateRpeDisplay('${id}',this.value);saveFbField('${esc(catName)}','${esc(team)}',${di},${wo},'rpe',parseInt(this.value));}"
         onchange="saveFbField('${esc(catName)}','${esc(team)}',${di},${wo},'rpe',parseInt(this.value))">
       <div class="rpe-thumb" id="rpe-thumb-${id}" style="left:${pct}%;border-color:${col}"></div>
     </div>
@@ -739,6 +740,7 @@ function rpeSliderHTML(id,val,catName,team,di,wo){
 }
 function updateRpeDisplay(id,val){
   val=parseInt(val);const col=rpeColor(val);
+  const _r=document.getElementById('rpe-val-'+id);const _row=_r&&_r.closest('.rpe-row');if(_row)_row.classList.remove('rpe-unset');
   const valEl=document.getElementById('rpe-val-'+id);if(valEl){valEl.textContent=val;valEl.style.color=col;}
   const thumb=document.getElementById('rpe-thumb-'+id);if(thumb){thumb.style.left=((val-1)/9*100)+'%';thumb.style.borderColor=col;}
 }
@@ -763,7 +765,7 @@ function applyConfig(){
   const {name,badge,color,emoji,img}=CFG.club;
   document.getElementById('club-name-lbl').textContent=name;
   const badgeEl=document.getElementById('club-badge');
-  if(img){badgeEl.innerHTML=`<img src="${img}" alt="${badge}" onerror="this.parentElement.textContent='${emoji||badge}'">`;badgeEl.style.fontSize='11px';}
+  if(safeUrl(img)){badgeEl.textContent='';const im=document.createElement('img');im.src=safeUrl(img);im.alt=badge;im.onerror=()=>{badgeEl.textContent=emoji||badge;};badgeEl.appendChild(im);badgeEl.style.fontSize='11px';}
   else{badgeEl.textContent=emoji||badge;badgeEl.style.fontSize=emoji?'20px':'11px';}
   document.documentElement.style.setProperty('--brand',color);
   document.getElementById('topbar').style.background=color;
@@ -776,7 +778,7 @@ let ST={
   mode:'entrenador',tab:'planificador',catIdx:0,weekOff:0,entWeekOff:0,
   modal:null,carga:null,modalTab:'biblioteca',entEquipo:null,entCat:null,entTab:'setmana',
   expEquipos:{},expTab:'resum',libSelV:null,libSelE:null,
-  catCharts:{},pinVerified:false,expandedDays:{},copyTargetOff:1,
+  catCharts:{},pinVerified:false,drafts:{},pendingRender:false,expandedDays:{},copyTargetOff:1,
   dragSrc:null,selMode:false,selCells:[],clipboard:[],pasteMode:false
 };
 
@@ -862,6 +864,7 @@ function updateEntLabel(){
   const el=document.getElementById('ent-week-lbl');if(el){el.textContent=wLabel(ST.entWeekOff);el.className='week-lbl-btn'+(ST.entWeekOff===0?' current-week':'');}
 }
 function renderAll(){
+  applyOutbox();const ae=document.activeElement;if(ae&&ae.classList&&ae.classList.contains('fb-note')){ST.pendingRender=true;return;}
   if(ST.mode==='victor'){renderPlanner();renderFbList();}
   else if(ST.entEquipo)renderEntContent();
   if(ST.entTab==='biblioteca')renderBiblioteca('e');
@@ -875,6 +878,7 @@ function openSSE(node){
   function resetTimer(){clearTimeout(_sseTimer[node]);_sseTimer[node]=setTimeout(()=>openSSE(node),SSE_TIMEOUT);}
   es.addEventListener('put',e=>{resetTimer();try{const {path,data}=JSON.parse(e.data);if(path==='/'||path===''||path==null){DB[node]=data??{};}else{const parts=path.replace(/^\//,'').split('/');let obj=DB[node];for(let i=0;i<parts.length-1;i++){if(obj[parts[i]]==null||typeof obj[parts[i]]!=='object')obj[parts[i]]={};obj=obj[parts[i]];}const lastKey=parts[parts.length-1];if(data==null){delete obj[lastKey];}else{obj[lastKey]=data;}}setConnected();renderAll();}catch(err){dbg('SSE put err: '+err);}});
   es.addEventListener('patch',e=>{resetTimer();try{const {path,data}=JSON.parse(e.data);let tgt;if(path==='/'||path===''||path==null){tgt=DB[node];}else{const parts=path.replace(/^\//,'').split('/');let obj=DB[node];for(let i=0;i<parts.length-1;i++){if(obj[parts[i]]==null||typeof obj[parts[i]]!=='object')obj[parts[i]]={};obj=obj[parts[i]];}const lastKey=parts[parts.length-1];obj[lastKey]=obj[lastKey]||{};tgt=obj[lastKey];}Object.assign(tgt,data??{});setConnected();renderAll();}catch(err){dbg('SSE patch err: '+err);}});
+  es.addEventListener('keep-alive',resetTimer);
   es.addEventListener('cancel',()=>{try{es.close();}catch(e){}_sse[node]=null;setTimeout(()=>openSSE(node),3000);});
   es.onerror=()=>{setDisconnected();clearTimeout(_sseTimer[node]);_sseTimer[node]=setTimeout(()=>openSSE(node),10000);};
   _sse[node]=es;resetTimer();
@@ -951,6 +955,7 @@ async function migrateWeekKeys(){
   renderAll();
   toast('✅ '+moved+' migrades'+(conflicts+errors>0?' · ⚠️ '+(conflicts+errors)+' sense migrar (mira depuració)':''));
 }
+let _cfgKnown={c:new Set(),e:new Set()};
 async function saveCatsConfig(){
   const blocks=document.getElementById('cfg-cats').querySelectorAll('.cat-cfg-block');const newCats=[];
   blocks.forEach(block=>{
@@ -967,10 +972,10 @@ async function saveCatsConfig(){
     const localCatIds=new Set(newCats.map(c=>c.id));
     remoteCats.forEach(rc=>{
       if(!rc||!rc.id)return;
-      if(!localCatIds.has(rc.id)){newCats.push(rc);return;}
+      if(!localCatIds.has(rc.id)){if(!_cfgKnown.c.has(rc.id))newCats.push(rc);return;}
       const lc=newCats.find(c=>c.id===rc.id);
       const localEqIds=new Set(lc.equips.map(e=>e.id));
-      (rc.equips||[]).forEach(re=>{if(re&&re.id&&!localEqIds.has(re.id))lc.equips.push(re);});
+      (rc.equips||[]).forEach(re=>{if(re&&re.id&&!localEqIds.has(re.id)&&!_cfgKnown.e.has(re.id))lc.equips.push(re);});
     });
   }catch(e){dbg('saveCatsConfig fetch ERR: '+e.message);}
   CFG.categories=newCats;if(ST.catIdx>=CFG.categories.length)ST.catIdx=0;applyConfig();initCatRow();renderPlanner();toast('✅ Categories i equips guardats');
@@ -984,14 +989,15 @@ function renderConfigTab(){
 }
 function selClubEmoji(el){document.querySelectorAll('.emoji-opt').forEach(e=>e.classList.remove('sel'));el.classList.add('sel');}
 function renderCfgCats(){
+  _cfgKnown={c:new Set((CFG.categories||[]).map(c=>c.id)),e:new Set((CFG.categories||[]).flatMap(c=>(c.equips||[]).map(e=>e.id)))};
   document.getElementById('cfg-cats').innerHTML=(CFG.categories||[]).map(cat=>`
-    <div class="cat-cfg-block" data-cat-id="${cat.id}">
-      <div class="cat-cfg-header"><div class="color-preview" style="background:${cat.color}"></div><input type="color" class="cat-color-input" value="${cat.color}" style="width:40px;height:34px;padding:2px 4px;margin-bottom:0;flex-shrink:0" onchange="this.previousElementSibling.style.background=this.value"><input type="text" class="cat-name-input" value="${cat.name}" placeholder="Nom categoria" style="flex:1;margin-bottom:0;font-weight:700"><button onclick="removeCategoria(this)" style="width:34px;height:34px;flex-shrink:0;border:1.5px solid var(--red-b);border-radius:var(--radius-sm);background:var(--red-l);color:var(--red);cursor:pointer;font-size:16px">×</button></div>
+    <div class="cat-cfg-block" data-cat-id="${h(cat.id)}">
+      <div class="cat-cfg-header"><div class="color-preview" style="background:${h(cat.color)}"></div><input type="color" class="cat-color-input" value="${h(cat.color)}" style="width:40px;height:34px;padding:2px 4px;margin-bottom:0;flex-shrink:0" onchange="this.previousElementSibling.style.background=this.value"><input type="text" class="cat-name-input" value="${h(cat.name)}" placeholder="Nom categoria" style="flex:1;margin-bottom:0;font-weight:700"><button onclick="removeCategoria(this)" style="width:34px;height:34px;flex-shrink:0;border:1.5px solid var(--red-b);border-radius:var(--radius-sm);background:var(--red-l);color:var(--red);cursor:pointer;font-size:16px">×</button></div>
       <div class="eq-list">${(cat.equips||[]).map(eq=>renderEqCfgRow(eq,cat.color)).join('')}</div>
       <button class="add-eq-btn" onclick="addEquip(this)">+ Afegir equip</button>
     </div>`).join('');
 }
-function renderEqCfgRow(eq,catColor){const c=eq.color||catColor||'#888888';return `<div class="eq-cfg-row" data-eq-id="${eq.id}"><input type="text" value="${eq.n}" placeholder="Nom equip" style="flex:1;min-width:80px"><button class="g-toggle ${eq.g}" data-g="${eq.g}" onclick="toggleGender(this)">${eq.g==='m'?'M':'F'}</button><input type="color" class="eq-color-input" value="${c}" title="Color equip" style="width:34px;height:34px;padding:2px 4px;margin-bottom:0;flex-shrink:0;border-radius:var(--radius-sm)"><button class="del-btn" onclick="this.closest('.eq-cfg-row').remove()">×</button></div>`;}
+function renderEqCfgRow(eq,catColor){const c=eq.color||catColor||'#888888';return `<div class="eq-cfg-row" data-eq-id="${h(eq.id)}"><input type="text" value="${h(eq.n)}" placeholder="Nom equip" style="flex:1;min-width:80px"><button class="g-toggle ${h(eq.g)}" data-g="${h(eq.g)}" onclick="toggleGender(this)">${eq.g==='m'?'M':'F'}</button><input type="color" class="eq-color-input" value="${c}" title="Color equip" style="width:34px;height:34px;padding:2px 4px;margin-bottom:0;flex-shrink:0;border-radius:var(--radius-sm)"><button class="del-btn" onclick="this.closest('.eq-cfg-row').remove()">×</button></div>`;}
 function addCategoria(){const div=document.createElement('div');div.className='cat-cfg-block';div.dataset.catId='cat_'+Date.now();div.innerHTML=`<div class="cat-cfg-header"><div class="color-preview" style="background:#888"></div><input type="color" class="cat-color-input" value="#888888" style="width:40px;height:34px;padding:2px 4px;margin-bottom:0;flex-shrink:0" onchange="this.previousElementSibling.style.background=this.value"><input type="text" class="cat-name-input" value="" placeholder="Nom categoria" style="flex:1;margin-bottom:0;font-weight:700"><button onclick="removeCategoria(this)" style="width:34px;height:34px;flex-shrink:0;border:1.5px solid var(--red-b);border-radius:var(--radius-sm);background:var(--red-l);color:var(--red);cursor:pointer;font-size:16px">×</button></div><div class="eq-list"></div><button class="add-eq-btn" onclick="addEquip(this)">+ Afegir equip</button>`;document.getElementById('cfg-cats').appendChild(div);}
 function removeCategoria(btn){if(!confirm('Eliminar categoria?'))return;btn.closest('.cat-cfg-block').remove();}
 function addEquip(btn){const row=document.createElement('div');row.className='eq-cfg-row';row.dataset.eqId='eq_'+Date.now();const catColor=btn.closest('.cat-cfg-block').querySelector('.cat-color-input').value||'#888888';row.innerHTML=`<input type="text" value="" placeholder="Nom equip" style="flex:1;min-width:80px"><button class="g-toggle m" data-g="m" onclick="toggleGender(this)">M</button><input type="color" class="eq-color-input" value="${catColor}" title="Color equip" style="width:34px;height:34px;padding:2px 4px;margin-bottom:0;flex-shrink:0;border-radius:var(--radius-sm)"><button class="del-btn" onclick="this.closest('.eq-cfg-row').remove()">×</button>`;btn.closest('.cat-cfg-block').querySelector('.eq-list').appendChild(row);}
@@ -1018,7 +1024,7 @@ function setEntTab(t){
   if(t==='biblioteca')renderBiblioteca('e');
 }
 function setCatIdx(i){ST.catIdx=i;initCatRow();renderPlanner();}
-function initCatRow(){document.getElementById('cat-row').innerHTML=getCats().map((c,i)=>{const active=i===ST.catIdx;return `<button class="cat-pill" onclick="setCatIdx(${i})" style="background:${active?c.color:c.light};color:${active?'#fff':c.color};border-color:${active?c.color:'transparent'}">${c.name}</button>`;}).join('');}
+function initCatRow(){document.getElementById('cat-row').innerHTML=getCats().map((c,i)=>{const active=i===ST.catIdx;return `<button class="cat-pill" onclick="setCatIdx(${i})" style="background:${active?c.color:c.light};color:${active?'#fff':c.color};border-color:${active?c.color:'transparent'}">${h(c.name)}</button>`;}).join('');}
 function currentCat(){return getCats()[ST.catIdx]||getCats()[0];}
 function changeWeek(d){ST.weekOff+=d;updateLabels();renderPlanner();}
 function changeEntWeek(d){ST.entWeekOff+=d;ST.entDay=null;updateEntLabel();ST.expandedDays={};renderEntContent();}
@@ -1057,8 +1063,8 @@ async function onDrop(e,catName,team,di,wo){
 
 function setExpTab(t){ST.expTab=t;['resum','partits','feedback'].forEach(x=>{document.getElementById('etab-'+x).className='exp-tab'+(x===t?' active':'');document.getElementById('epanel-'+x).classList.toggle('hidden',x!==t);});renderActiveExport();}
 function renderActiveExport(){updateLabels();if(ST.expTab==='resum'){renderExpCatSelect();renderExpEquipos();renderExport();}else if(ST.expTab==='partits')renderPartitsExport();else if(ST.expTab==='feedback')renderFeedbackExport();}
-function renderExpCatSelect(){const sel=document.getElementById('exp-cat');const cur=sel.value;sel.innerHTML=getCats().map(c=>`<option value="${c.name}">${c.name}</option>`).join('');if(cur&&getCats().find(c=>c.name===cur))sel.value=cur;}
-function renderExpEquipos(){const catName=document.getElementById('exp-cat').value;const cat=getCatByName(catName);if(!cat)return;if(!ST.expEquipos[catName])ST.expEquipos[catName]={};document.getElementById('exp-equipos').innerHTML=(cat.equips||[]).map(eq=>{const sel=ST.expEquipos[catName][eq.n]!==false;return `<button class="eq-btn${sel?' active':''}" onclick="toggleExpEq('${esc(catName)}','${esc(eq.n)}',this)">${eq.n}</button>`;}).join('');}
+function renderExpCatSelect(){const sel=document.getElementById('exp-cat');const cur=sel.value;sel.innerHTML=getCats().map(c=>`<option value="${h(c.name)}">${h(c.name)}</option>`).join('');if(cur&&getCats().find(c=>c.name===cur))sel.value=cur;}
+function renderExpEquipos(){const catName=document.getElementById('exp-cat').value;const cat=getCatByName(catName);if(!cat)return;if(!ST.expEquipos[catName])ST.expEquipos[catName]={};document.getElementById('exp-equipos').innerHTML=(cat.equips||[]).map(eq=>{const sel=ST.expEquipos[catName][eq.n]!==false;return `<button class="eq-btn${sel?' active':''}" onclick="toggleExpEq('${esc(catName)}','${esc(eq.n)}',this)">${h(eq.n)}</button>`;}).join('');}
 function toggleExpEq(cat,name,btn){if(!ST.expEquipos[cat])ST.expEquipos[cat]={};ST.expEquipos[cat][name]=ST.expEquipos[cat][name]===false?true:false;btn.className='eq-btn'+(ST.expEquipos[cat][name]!==false?' active':'');}
 function renderExport(){
   const catName=document.getElementById('exp-cat')?.value;const wo=ST.weekOff;const cat=getCatByName(catName);if(!cat)return;
@@ -1083,7 +1089,7 @@ function renderFeedbackExport(){
 function copyBox(boxId,btnId){navigator.clipboard.writeText(document.getElementById(boxId).textContent).then(()=>{const btn=document.getElementById(btnId);btn.className='copy-btn done';btn.innerHTML='<i class="ti ti-check"></i> Copiat!';setTimeout(()=>{btn.className='copy-btn';btn.innerHTML='<i class="ti ti-copy"></i> Copiar text';},2500);});}
 
 function setModalTab(t){ST.modalTab=t;document.getElementById('mtab-bib').className='modal-tab'+(t==='biblioteca'?' active':'');document.getElementById('mtab-libre').className='modal-tab'+(t==='libre'?' active':'');document.getElementById('mpanel-biblioteca').classList.toggle('hidden',t!=='biblioteca');document.getElementById('mpanel-libre').classList.toggle('hidden',t!=='libre');}
-function populateTipoSelect(){const sel=document.getElementById('m-tipo');const cur=sel.value;sel.innerHTML='<option value="">— Seleccionar —</option>'+BIBLIOTECA.map(b=>`<option value="${b.name}">${b.name}</option>`).join('');if(cur)sel.value=cur;}
+function populateTipoSelect(){const sel=document.getElementById('m-tipo');const cur=sel.value;sel.innerHTML='<option value="">— Seleccionar —</option>'+BIBLIOTECA.map(b=>`<option value="${h(b.name)}">${h(b.name)}</option>`).join('');if(cur)sel.value=cur;}
 function openModal(catName,team,di,wo){
   if(ST.selMode){toggleCellSel(catName,team,di,wo);return;}if(ST.pasteMode){pasteFromClipboard(catName,team,di,wo);return;}
   const key=sk(catName,team,di,wo);const ex=gS(key);ST.modal={catName,team,di,wo,key};
@@ -1104,7 +1110,7 @@ async function doSaveSession(){
   const key=ST.modal.key;DB.sessions[fk(key)]=data;closeModal();renderPlanner();toast('✅ Sessió guardada');
   try{await fbSet('/sessions/'+fk(key),data);}catch(e){toast('⚠️ Guardat localment.');}
 }
-async function doDelSession(){const key=ST.modal.key;delete DB.sessions[fk(key)];delete DB.feedbacks[fk(key)];closeModal();renderPlanner();toast('🗑️ Sessió eliminada');try{await fbDel('/sessions/'+fk(key));await fbDel('/feedbacks/'+fk(key));}catch(e){dbg('DEL ERR: '+e.message);}}
+async function doDelSession(){const key=ST.modal.key;if(!confirm(gF(key)?'Aquesta sessió té feedback de l\'entrenador i també s\'esborrarà. Continuar?':'Eliminar la sessió?'))return;delete DB.sessions[fk(key)];delete DB.feedbacks[fk(key)];closeModal();renderPlanner();toast('🗑️ Sessió eliminada');try{await fbDel('/sessions/'+fk(key));await fbDel('/feedbacks/'+fk(key));}catch(e){dbg('DEL ERR: '+e.message);}}
 
 // ── Biblioteca ─────────────────────────────────────────────────────
 let BIBLIOTECA=[
@@ -1180,9 +1186,9 @@ function renderBiblioteca(t){
   const list=t==='v'?BIBLIOTECA:BIBLIOTECA.filter(s=>!s.hidden);
   el.innerHTML=list.map(s=>{
     const tc=T_COL[s.tipo]||'#888';const tb=T_BG[s.tipo]||'#eee';
-    const visBtn=t==='v'?`<button class="vis-btn ${s.hidden?'hidden-s':'visible'}" onclick="event.stopPropagation();toggleBibVisibility('${s.id}')">${s.hidden?'🙈 Oculta':'👁️ Visible'}</button>`:'';
-    const editBtn=t==='v'?`<button onclick="event.stopPropagation();openBibModal('${s.id}')" style="margin-top:4px;width:100%;padding:4px;font-size:10px;font-weight:700;border:1.5px solid ${tc};border-radius:4px;background:transparent;color:${tc};cursor:pointer">✏️ Editar</button>`:'';
-    return `<div class="lib-card${sel===s.id?' sel':''}${s.hidden?' hidden-card':''}" style="background:${tb};color:${tc}" onclick="selLib('${s.id}','${t}')"><div class="lib-type" style="background:rgba(0,0,0,.1);color:${tc}">${s.tipo}</div><div class="lib-name">${s.name}</div><div class="lib-meta">${s.sub} · ${s.carga}</div>${visBtn}${editBtn}</div>`;
+    const visBtn=t==='v'?`<button class="vis-btn ${s.hidden?'hidden-s':'visible'}" onclick="event.stopPropagation();toggleBibVisibility('${esc(s.id)}')">${s.hidden?'🙈 Oculta':'👁️ Visible'}</button>`:'';
+    const editBtn=t==='v'?`<button onclick="event.stopPropagation();openBibModal('${esc(s.id)}')" style="margin-top:4px;width:100%;padding:4px;font-size:10px;font-weight:700;border:1.5px solid ${h(tc)};border-radius:4px;background:transparent;color:${h(tc)};cursor:pointer">✏️ Editar</button>`:'';
+    return `<div class="lib-card${sel===s.id?' sel':''}${s.hidden?' hidden-card':''}" style="background:${h(tb)};color:${h(tc)}" onclick="selLib('${esc(s.id)}','${t}')"><div class="lib-type" style="background:rgba(0,0,0,.1);color:${h(tc)}">${h(s.tipo)}</div><div class="lib-name">${h(s.name)}</div><div class="lib-meta">${h(s.sub)} · ${h(s.carga)}</div>${visBtn}${editBtn}</div>`;
   }).join('');
   if(sel)renderLibDetail(sel,t);
 }
@@ -1190,22 +1196,22 @@ function selLib(id,t){if(t==='v')ST.libSelV=id;else ST.libSelE=id;renderBibliote
 function renderLibDetail(id,t){
   const s=BIBLIOTECA.find(x=>x.id===id);if(!s)return;const tc=T_COL[s.tipo]||'#888';const tb=T_BG[s.tipo]||'#eee';
   const el=document.getElementById(t==='v'?'lib-detail-v':'lib-detail-e');if(!el)return;
-  const pdfBtn=s.pdf?`<a href="${s.pdf}" target="_blank" style="flex:1;min-width:120px;display:flex;align-items:center;justify-content:center;gap:6px;background:#1D4ED8;border:1.5px solid #1E40AF;border-radius:8px;padding:10px 14px;text-decoration:none;color:#fff;font-weight:700;font-size:13px">📄 PDF Sessió</a>`:'';
-  const presBtn=(s.ex||[]).length?`<button onclick="openPresFromLib('${s.id}')" style="flex:1;min-width:120px;display:flex;align-items:center;justify-content:center;gap:6px;background:#DC2626;border:none;border-radius:8px;padding:10px 14px;color:#fff;font-weight:700;font-size:13px;cursor:pointer">▶ Presentació</button>`:'';
+  const pdfBtn=s.pdf?`<a href="${safeUrl(s.pdf)}" target="_blank" style="flex:1;min-width:120px;display:flex;align-items:center;justify-content:center;gap:6px;background:#1D4ED8;border:1.5px solid #1E40AF;border-radius:8px;padding:10px 14px;text-decoration:none;color:#fff;font-weight:700;font-size:13px">📄 PDF Sessió</a>`:'';
+  const presBtn=(s.ex||[]).length?`<button onclick="openPresFromLib('${esc(s.id)}')" style="flex:1;min-width:120px;display:flex;align-items:center;justify-content:center;gap:6px;background:#DC2626;border:none;border-radius:8px;padding:10px 14px;color:#fff;font-weight:700;font-size:13px;cursor:pointer">▶ Presentació</button>`:'';
   const actionBtns=(pdfBtn||presBtn)?`<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">${pdfBtn}${presBtn}</div>`:'';
-  el.innerHTML=`<div class="lib-detail"><div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span class="lib-type" style="background:${tb};color:${tc}">${s.tipo}</span><h3>${s.name}</h3><span style="margin-left:auto;font-size:11px;color:var(--text2);font-weight:700">${s.carga}</span></div>${actionBtns}<p>${s.desc||''}</p><div class="sec-label">Material</div><div style="margin-bottom:12px">${(s.mat||[]).length?(s.mat||[]).map(m=>`<span class="mat-tag">📦 ${m}</span>`).join(''):'<span class="mat-tag">Sense material</span>'}</div>${(s.ex||[]).length?`<div class="sec-label">Exercicis (${s.ex.length})</div><div class="ex-grid">${s.ex.map(e=>`<div class="ex-item">${e.n}${e.d?`<div class="ex-sub">${e.d}</div>`:''}${e.gif?`<img src="${e.gif}" style="width:100%;margin-top:6px;border-radius:4px;max-height:120px;object-fit:contain;background:#000" onerror="this.style.display='none'">`:''}</div>`).join('')}</div>`:''}</div>`;
+  el.innerHTML=`<div class="lib-detail"><div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span class="lib-type" style="background:${h(tb)};color:${h(tc)}">${h(s.tipo)}</span><h3>${h(s.name)}</h3><span style="margin-left:auto;font-size:11px;color:var(--text2);font-weight:700">${h(s.carga)}</span></div>${actionBtns}<p>${h(s.desc||'')}</p><div class="sec-label">Material</div><div style="margin-bottom:12px">${(s.mat||[]).length?(s.mat||[]).map(m=>`<span class="mat-tag">📦 ${h(m)}</span>`).join(''):'<span class="mat-tag">Sense material</span>'}</div>${(s.ex||[]).length?`<div class="sec-label">Exercicis (${s.ex.length})</div><div class="ex-grid">${s.ex.map(e=>`<div class="ex-item">${h(e.n)}${e.d?`<div class="ex-sub">${h(e.d)}</div>`:''}${e.gif?`<img src="${safeUrl(e.gif)}" style="width:100%;margin-top:6px;border-radius:4px;max-height:120px;object-fit:contain;background:#000" onerror="this.style.display='none'">`:''}</div>`).join('')}</div>`:''}</div>`;
 }
 
 function renderPlanner(){
   const cat=currentCat();if(!cat)return;const wo=ST.weekOff;updateLabels();let tot=0,comp=0,fbct=0,csum=0;const cols='106px repeat(7,1fr)';
-  let html=`<div class="pgrid-header" style="grid-template-columns:${cols}"><div class="ghc" style="color:${cat.color}">${cat.name}</div>${DIAS.map((d,i)=>`<div class="ghc${WE.includes(i)?' we':''}">${d}</div>`).join('')}</div>`;
+  let html=`<div class="pgrid-header" style="grid-template-columns:${cols}"><div class="ghc" style="color:${h(cat.color)}">${h(cat.name)}</div>${DIAS.map((d,i)=>`<div class="ghc${WE.includes(i)?' we':''}">${d}</div>`).join('')}</div>`;
   (cat.equips||[]).forEach(eq=>{
     const trainDays=getTrainDays(cat.name+'|'+eq.n);const eqColor=getEqColor(cat,eq);const eqLight=getEqLight(cat,eq);
-    html+=`<div class="trow" style="grid-template-columns:${cols};border-left:3px solid ${eqColor}"><div class="tname">${eq.n}<span class="gbadge b${eq.g}">${eq.g==='m'?'M':'F'}</span></div>`;
+    html+=`<div class="trow" style="grid-template-columns:${cols};border-left:3px solid ${h(eqColor)}"><div class="tname">${h(eq.n)}<span class="gbadge b${h(eq.g)}">${eq.g==='m'?'M':'F'}</span></div>`;
     for(let di=0;di<7;di++){
       const key=sk(cat.name,eq.n,di,wo);const s=gS(key);const fb=gF(key);const isP=gP(key);const isWE=WE.includes(di);const isTrain=trainDays.includes(di);
       if(s){tot++;csum+=CV[s.carga];if(fb){fbct++;if(fb.status==='ok')comp++;}}
-      const cellStyle=isTrain&&!isWE?`border-top:2px solid ${eqColor};background:${eqLight}`:'';
+      const cellStyle=isTrain&&!isWE?`border-top:2px solid ${h(eqColor)};background:${h(eqLight)}`:'';
       const isSel=ST.selCells.some(c=>c.key===key);
       const dragAttrs=s&&!ST.selMode&&!ST.pasteMode?`draggable="true" ondragstart="onDragStart(event,'${esc(cat.name)}','${esc(eq.n)}',${di},${wo})" ondragend="onDragEnd()"` :'';
       const dropAttrs=!ST.selMode&&!ST.pasteMode?`ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'${esc(cat.name)}','${esc(eq.n)}',${di},${wo})"` :'';
@@ -1234,14 +1240,14 @@ function renderFbList(){
       const lbl={ok:'✅ Completada',parcial:'⚠️ Parcial',no:'❌ No realitzada'}[fb.status];
       const rpeCol=fb.rpe?rpeColor(fb.rpe):'var(--text)';
       const rpeStr=fb.rpe?` · RPE <strong style="color:${rpeCol}">${fb.rpe}</strong>`:'';
-      items.push(`<div class="fb-row"><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="font-weight:700;font-size:12px">${eq.n}</span><span style="font-size:11px;color:var(--text2)">${dia}</span><span style="font-size:11px;color:var(--text2)">${s.tipo}</span><span style="margin-left:auto;font-size:11px">${lbl}${rpeStr}</span></div>${fb.note?`<div style="font-size:10px;font-style:italic;color:var(--text2);margin-top:3px">"${fb.note}"</div>`:''}</div>`);
+      items.push(`<div class="fb-row"><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="font-weight:700;font-size:12px">${h(eq.n)}</span><span style="font-size:11px;color:var(--text2)">${dia}</span><span style="font-size:11px;color:var(--text2)">${h(s.tipo)}</span><span style="margin-left:auto;font-size:11px">${lbl}${rpeStr}</span></div>${fb.note?`<div style="font-size:10px;font-style:italic;color:var(--text2);margin-top:3px">"${h(fb.note)}"</div>`:''}</div>`);
     }
   }));
   el.innerHTML=items.length?items.join(''):'<span style="font-size:12px;color:var(--text3)">Sense feedback aquesta setmana.</span>';renderHorarisResum();
 }
 function renderHorarisResum(){
   const el=document.getElementById('horaris-resum');if(!el)return;const cat=currentCat();if(!cat)return;let html='';
-  (cat.equips||[]).forEach(eq=>{const days=getTrainDays(cat.name+'|'+eq.n);if(!days.length)return;const eqColor=getEqColor(cat,eq);html+=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap"><span style="font-size:11px;font-weight:700;min-width:90px">${eq.n}</span>${DIAS.map((d,i)=>`<span style="font-size:10px;padding:2px 7px;border-radius:10px;font-weight:700;background:${days.includes(i)?eqColor:'var(--bg)'};color:${days.includes(i)?'#fff':'var(--text3)'};border:1px solid ${days.includes(i)?eqColor:'var(--border)'}">${d}</span>`).join('')}</div>`;});
+  (cat.equips||[]).forEach(eq=>{const days=getTrainDays(cat.name+'|'+eq.n);if(!days.length)return;const eqColor=getEqColor(cat,eq);html+=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap"><span style="font-size:11px;font-weight:700;min-width:90px">${h(eq.n)}</span>${DIAS.map((d,i)=>`<span style="font-size:10px;padding:2px 7px;border-radius:10px;font-weight:700;background:${days.includes(i)?eqColor:'var(--bg)'};color:${days.includes(i)?'#fff':'var(--text3)'};border:1px solid ${days.includes(i)?eqColor:'var(--border)'}">${d}</span>`).join('')}</div>`;});
   el.innerHTML=html||'<span style="font-size:12px;color:var(--text3)">Cap entrenador ha marcat els seus dies encara.</span>';
 }
 
@@ -1303,26 +1309,26 @@ function renderCargas(){
           if(s){const v=CV[s.carga];rowTotal+=v;const bg={baja:'#EAF3DE',media:'#FAEEDA',alta:'#FAECE7',max:'#FCEBEB'}[s.carga]||'#e5e7eb';const col={baja:'#3B6D11',media:'#854F0B',alta:'#993C1D',max:'#A32D2D'}[s.carga]||'#888';cells.push(`<td style="padding:5px 4px;text-align:center;border-bottom:1px solid var(--border)"><span style="background:${bg};color:${col};padding:2px 5px;border-radius:4px;font-weight:700;font-size:10px">${{baja:'B',media:'M',alta:'A',max:'MX'}[s.carga]}</span></td>`);}
           else{cells.push(`<td style="padding:5px 4px;text-align:center;border-bottom:1px solid var(--border);color:var(--text3)">—</td>`);}
         }
-        tableHTML+=`<tr><td style="padding:5px 8px;font-weight:600;border-bottom:1px solid var(--border)">${eq.n}</td>${cells.join('')}<td style="padding:5px 6px;text-align:center;font-weight:900;border-bottom:1px solid var(--border);color:${cat.color}">${rowTotal}</td></tr>`;
+        tableHTML+=`<tr><td style="padding:5px 8px;font-weight:600;border-bottom:1px solid var(--border)">${h(eq.n)}</td>${cells.join('')}<td style="padding:5px 6px;text-align:center;font-weight:900;border-bottom:1px solid var(--border);color:${h(cat.color)}">${rowTotal}</td></tr>`;
       });
       tableHTML+='</table></div>';
-      block.innerHTML=`<div class="cat-chart-title" style="background:${cat.light};color:${cat.color}">${cat.name} — Detall per equip <span style="font-weight:400;font-size:11px;margin-left:6px">Mitja: ${lblCat}</span></div><div class="chart-wrap-sm"><canvas id="chart-${cat.id}"></canvas></div>${tableHTML}`;
+      block.innerHTML=`<div class="cat-chart-title" style="background:${h(cat.light)};color:${h(cat.color)}">${h(cat.name)} — Detall per equip <span style="font-weight:400;font-size:11px;margin-left:6px">Mitja: ${lblCat}</span></div><div class="chart-wrap-sm"><canvas id="chart-${h(cat.id)}"></canvas></div>${tableHTML}`;
       container.appendChild(block);
       ST.catCharts[cat.id]=new Chart(document.getElementById('chart-'+cat.id),{type:'bar',data:{labels,datasets:[{label:'Càrrega',data:dataCarga,backgroundColor:bgColors,borderColor:bgColors,borderWidth:1,borderRadius:4,order:2},{label:'RPE',data:dataRpe,type:'line',borderColor:'rgba(59,109,17,.6)',backgroundColor:'rgba(59,109,17,.15)',borderWidth:2,pointRadius:4,pointBackgroundColor:'rgba(59,109,17,.8)',tension:.3,order:1,spanGaps:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.dataset.label==='RPE'&&ctx.raw!=null?`RPE: ${(ctx.raw*10/4).toFixed(1)}`:`Càrrega: ${ctx.raw}`}}},scales:{x:{ticks:{font:{size:11},autoSkip:false},grid:{display:false}},y:{min:0,max:20,ticks:{stepSize:5,font:{size:9}},grid:{color:'rgba(128,128,128,.08)'}}}}});
     } else {
       // Vista global: gràfic per categoria (comportament original)
       (cat.equips||[]).forEach(eq=>{let sum=0,cnt=0,rpeSum=0,rpeCnt=0;for(let di=0;di<5;di++){const key=sk(cat.name,eq.n,di,ST.weekOff);const s=gS(key);const fb=gF(key);if(s){sum+=CV[s.carga];cnt++;}if(fb?.rpe){rpeSum+=fb.rpe;rpeCnt++;}}const avg=cnt>0?sum/cnt:0;labels.push(eq.n);dataCarga.push(sum);bgColors.push(avg===0?'#e5e7eb':avg<=1.5?'#EAF3DE':avg<=2.5?'#FAEEDA':avg<=3.5?'#FAECE7':'#FCEBEB');dataRpe.push(rpeCnt>0?parseFloat((rpeSum/rpeCnt*4/10).toFixed(2)):null);catSum+=sum;catCnt+=cnt;});
       const avgCat=catCnt>0?Math.round(catSum/catCnt*10)/10:0;const lblCat=avgCat===0?'Sense dades':avgCat<=1.5?'Baixa':avgCat<=2.5?'Mitjana':avgCat<=3.5?'Alta':'Màxima';
-      const block=document.createElement('div');block.className='cat-chart-block';block.innerHTML=`<div class="cat-chart-title" style="background:${cat.light};color:${cat.color}">${cat.name} <span style="font-weight:400;font-size:11px;margin-left:6px">Mitja: ${lblCat}</span></div><div class="chart-wrap-sm"><canvas id="chart-${cat.id}"></canvas></div>`;container.appendChild(block);
+      const block=document.createElement('div');block.className='cat-chart-block';block.innerHTML=`<div class="cat-chart-title" style="background:${h(cat.light)};color:${h(cat.color)}">${h(cat.name)} <span style="font-weight:400;font-size:11px;margin-left:6px">Mitja: ${lblCat}</span></div><div class="chart-wrap-sm"><canvas id="chart-${h(cat.id)}"></canvas></div>`;container.appendChild(block);
       ST.catCharts[cat.id]=new Chart(document.getElementById('chart-'+cat.id),{type:'bar',data:{labels,datasets:[{label:'Càrrega',data:dataCarga,backgroundColor:bgColors,borderColor:bgColors,borderWidth:1,borderRadius:4,order:2},{label:'RPE',data:dataRpe,type:'line',borderColor:'rgba(59,109,17,.6)',backgroundColor:'rgba(59,109,17,.15)',borderWidth:2,pointRadius:4,pointBackgroundColor:'rgba(59,109,17,.8)',tension:.3,order:1,spanGaps:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.dataset.label==='RPE'&&ctx.raw!=null?`RPE: ${(ctx.raw*10/4).toFixed(1)}`:`Càrrega: ${ctx.raw}`}}},scales:{x:{ticks:{font:{size:9},autoSkip:false},grid:{display:false}},y:{min:0,max:20,ticks:{stepSize:5,font:{size:9}},grid:{color:'rgba(128,128,128,.08)'}}}}});
     }
     resumen[cat.id]={cat,sum:catSum,cnt:catCnt};
   });
-  document.getElementById('carga-resumen').innerHTML=Object.values(resumen).map(({cat,sum,cnt})=>{const avg=cnt>0?Math.round(sum/cnt*10)/10:0;const lbl=avg===0?'Sense dades':avg<=1.5?'Baixa':avg<=2.5?'Mitjana':avg<=3.5?'Alta':'Màxima';return `<div style="background:${cat.light};border-radius:8px;padding:12px 14px"><div style="font-size:11px;font-weight:700;color:${cat.color};margin-bottom:3px">${cat.name} · ${cnt} sessions</div><div style="font-size:20px;font-weight:700;color:${cat.color}">${lbl}</div></div>`;}).join('');
+  document.getElementById('carga-resumen').innerHTML=Object.values(resumen).map(({cat,sum,cnt})=>{const avg=cnt>0?Math.round(sum/cnt*10)/10:0;const lbl=avg===0?'Sense dades':avg<=1.5?'Baixa':avg<=2.5?'Mitjana':avg<=3.5?'Alta':'Màxima';return `<div style="background:${h(cat.light)};border-radius:8px;padding:12px 14px"><div style="font-size:11px;font-weight:700;color:${h(cat.color)};margin-bottom:3px">${h(cat.name)} · ${cnt} sessions</div><div style="font-size:20px;font-weight:700;color:${h(cat.color)}">${lbl}</div></div>`;}).join('');
 }
 
 function renderEntSelector(){
-  document.getElementById('ent-selector').innerHTML=getCats().flatMap(cat=>(cat.equips||[]).map(eq=>{const id=cat.name+'|'+eq.n;const active=ST.entEquipo===id;const eqColor=getEqColor(cat,eq);const eqLight=getEqLight(cat,eq);return `<button class="eq-btn${active?' active':''}" style="${active?`background:${eqColor};border-color:${eqColor};color:#fff`:`color:${eqColor};border-color:${eqLight}`}" onclick="selEntEquipo('${esc(cat.name)}','${esc(eq.n)}')">${eq.n}</button>`;})).join('');
+  document.getElementById('ent-selector').innerHTML=getCats().flatMap(cat=>(cat.equips||[]).map(eq=>{const id=cat.name+'|'+eq.n;const active=ST.entEquipo===id;const eqColor=getEqColor(cat,eq);const eqLight=getEqLight(cat,eq);return `<button class="eq-btn${active?' active':''}" style="${active?`background:${h(eqColor)};border-color:${h(eqColor)};color:#fff`:`color:${h(eqColor)};border-color:${h(eqLight)}`}" onclick="selEntEquipo('${esc(cat.name)}','${esc(eq.n)}')">${h(eq.n)}</button>`;})).join('');
 }
 function selEntEquipo(catName,name){
   ST.entEquipo=catName+'|'+name;ST.entCat=catName;ST.expandedDays={};ST.entDay=null;if(!getFav())setFav(ST.entEquipo);
@@ -1342,29 +1348,29 @@ function renderEntContent(){
   const cat=getCatByName(catName)||{color:'#C0152A',light:'#FDEAEA',name:catName,equips:[]};
   const eqObj=(cat.equips||[]).find(e=>e.n===team)||{};const eqColor=getEqColor(cat,eqObj);const eqLight=getEqLight(cat,eqObj);
   renderEntHome();updateEntLabel();const trainDays=getTrainDays(ST.entEquipo);
-  let html=`<div class="card" style="border-top:3px solid ${eqColor}"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><div><span style="font-size:15px;font-weight:700">${team}</span><span style="font-size:11px;color:${eqColor};font-weight:700;margin-left:8px;background:${eqLight};padding:2px 8px;border-radius:10px">${catName}</span></div><span style="font-size:11px;color:var(--text2)">${wLabel(wo)}</span></div>`;
+  let html=`<div class="card" style="border-top:3px solid ${h(eqColor)}"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><div><span style="font-size:15px;font-weight:700">${h(team)}</span><span style="font-size:11px;color:${h(eqColor)};font-weight:700;margin-left:8px;background:${h(eqLight)};padding:2px 8px;border-radius:10px">${h(catName)}</span></div><span style="font-size:11px;color:var(--text2)">${wLabel(wo)}</span></div>`;
   for(let di=0;di<7;di++){
     if(di!==ST.entDay)continue;
     const dia=DIAS_FULL[di];const isWE=WE.includes(di);const isTrainDay=trainDays.includes(di);const key=sk(catName,team,di,wo);const s=gS(key);const fb=gF(key);const isP=gP(key);const keyId=fk(key);const expanded=ST.expandedDays[keyId]!==false;
-    const rowStyle=isTrainDay&&!isWE?`border-left:3px solid ${eqColor};padding-left:8px;background:${eqLight}`:'';
-    html+=`<div class="wday-row" style="${rowStyle}"><div class="wday-top"><span class="wday-name${isWE?' we':''}">${dia}${isTrainDay&&!isWE?` <span style="font-size:9px;background:${eqColor};color:#fff;padding:1px 5px;border-radius:8px;margin-left:3px">Entren</span>`:''}</span>`;
+    const rowStyle=isTrainDay&&!isWE?`border-left:3px solid ${h(eqColor)};padding-left:8px;background:${h(eqLight)}`:'';
+    html+=`<div class="wday-row" style="${rowStyle}"><div class="wday-top"><span class="wday-name${isWE?' we':''}">${dia}${isTrainDay&&!isWE?` <span style="font-size:9px;background:${h(eqColor)};color:#fff;padding:1px 5px;border-radius:8px;margin-left:3px">Entren</span>`:''}</span>`;
     if(isP){html+=`<span class="spill p-partido" style="flex:none;padding:4px 10px;font-size:11px">🤾 Partit</span><button class="partido-btn active" style="margin-left:auto" onclick="togglePartit('${esc(catName)}','${esc(team)}',${di},${wo})">✅ Treure</button>`;}
     else if(isWE){html+=`<span style="font-size:11px;color:var(--text3);font-style:italic">Cap activitat</span><button class="partido-btn" style="margin-left:auto" onclick="togglePartit('${esc(catName)}','${esc(team)}',${di},${wo})">🤾 Marcar partit</button>`;}
-    else if(s){const cls=sesCls(s);html+=`<span class="spill ${cls}" style="flex:none;padding:4px 10px;font-size:11px">${s.tipo}</span><button class="expand-btn" onclick="toggleDayDetail('${keyId}')" style="margin-left:6px">${expanded?'▲ Tancar':'▼ Detalls'}</button><div style="margin-left:auto;display:flex;gap:4px"><button class="fbbtn${fb&&fb.status==='ok'?' ok':''}" onclick="setFb('${esc(catName)}','${esc(team)}',${di},${wo},'ok')">✅</button><button class="fbbtn${fb&&fb.status==='parcial'?' parcial':''}" onclick="setFb('${esc(catName)}','${esc(team)}',${di},${wo},'parcial')">⚠️</button><button class="fbbtn${fb&&fb.status==='no'?' no':''}" onclick="setFb('${esc(catName)}','${esc(team)}',${di},${wo},'no')">❌</button></div>`;}
+    else if(s){const cls=sesCls(s);html+=`<span class="spill ${cls}" style="flex:none;padding:4px 10px;font-size:11px">${h(s.tipo)}</span><button class="expand-btn" onclick="toggleDayDetail('${keyId}')" style="margin-left:6px">${expanded?'▲ Tancar':'▼ Detalls'}</button><div style="margin-left:auto;display:flex;gap:4px"><button class="fbbtn${fb&&fb.status==='ok'?' ok':''}" onclick="setFb('${esc(catName)}','${esc(team)}',${di},${wo},'ok')">✅</button><button class="fbbtn${fb&&fb.status==='parcial'?' parcial':''}" onclick="setFb('${esc(catName)}','${esc(team)}',${di},${wo},'parcial')">⚠️</button><button class="fbbtn${fb&&fb.status==='no'?' no':''}" onclick="setFb('${esc(catName)}','${esc(team)}',${di},${wo},'no')">❌</button></div>`;}
     else{html+=`<span style="font-size:11px;color:var(--text3)">Sense sessió</span>`;}
     html+='</div>';
-    if(s&&expanded){html+=`<div class="session-detail">`;if(s.nota)html+=`<div class="session-detail-title">📌 Nota</div><div style="font-size:12px;margin-bottom:10px;font-style:italic">${s.nota}</div>`;if(s.esLliure&&s.desc)html+=`<div class="session-detail-title">📝 Prescripció</div><div style="font-size:12px;margin-bottom:10px;white-space:pre-wrap">${s.desc}</div>`;if(!s.esLliure){const lib=BIBLIOTECA.find(l=>l.name===s.tipo);if(lib){if(lib.pdf||lib.ex?.length){html+=`<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">`;if(lib.pdf)html+=`<a href="${lib.pdf}" target="_blank" style="flex:1;min-width:120px;display:flex;align-items:center;justify-content:center;gap:6px;background:#1D4ED8;border:1.5px solid #1E40AF;border-radius:8px;padding:10px 14px;text-decoration:none;color:#fff;font-weight:700;font-size:13px">📄 PDF Sessió</a>`;if(lib.ex?.length)html+=`<button onclick="openPres('${esc(catName)}','${esc(team)}',${di},${wo})" style="flex:1;min-width:120px;display:flex;align-items:center;justify-content:center;gap:6px;background:#DC2626;border:1.5px solid #B91C1C;border-radius:8px;padding:10px 14px;color:#fff;font-weight:700;font-size:13px;cursor:pointer;border:none">▶ Presentació</button>`;html+=`</div>`;}if(lib.desc)html+=`<div class="session-detail-title">ℹ️ Descripció</div><div style="font-size:12px;color:var(--text2);margin-bottom:10px">${lib.desc}</div>`;if((lib.mat||[]).length)html+=`<div class="session-detail-title">🎒 Material</div><div style="margin-bottom:10px">${lib.mat.map(m=>`<span class="mat-tag">📦 ${m}</span>`).join('')}</div>`;if((lib.ex||[]).length)html+=`<div class="session-detail-title">💪 Exercicis</div><div class="ex-grid">${lib.ex.map(e=>`<div class="ex-item">${e.n}${e.d?`<div class="ex-sub">${e.d}</div>`:''}${e.gif?`<img src="${e.gif}" style="width:100%;margin-top:6px;border-radius:4px;max-height:120px;object-fit:contain;background:#000" onerror="this.style.display='none'">`:''}</div>`).join('')}</div>`;}}html+=`</div>`;}
+    if(s&&expanded){html+=`<div class="session-detail">`;if(s.nota)html+=`<div class="session-detail-title">📌 Nota</div><div style="font-size:12px;margin-bottom:10px;font-style:italic">${h(s.nota)}</div>`;if(s.esLliure&&s.desc)html+=`<div class="session-detail-title">📝 Prescripció</div><div style="font-size:12px;margin-bottom:10px;white-space:pre-wrap">${h(s.desc)}</div>`;if(!s.esLliure){const lib=BIBLIOTECA.find(l=>l.name===s.tipo);if(lib){if(lib.pdf||lib.ex?.length){html+=`<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">`;if(lib.pdf)html+=`<a href="${safeUrl(lib.pdf)}" target="_blank" style="flex:1;min-width:120px;display:flex;align-items:center;justify-content:center;gap:6px;background:#1D4ED8;border:1.5px solid #1E40AF;border-radius:8px;padding:10px 14px;text-decoration:none;color:#fff;font-weight:700;font-size:13px">📄 PDF Sessió</a>`;if(lib.ex?.length)html+=`<button onclick="openPres('${esc(catName)}','${esc(team)}',${di},${wo})" style="flex:1;min-width:120px;display:flex;align-items:center;justify-content:center;gap:6px;background:#DC2626;border:1.5px solid #B91C1C;border-radius:8px;padding:10px 14px;color:#fff;font-weight:700;font-size:13px;cursor:pointer;border:none">▶ Presentació</button>`;html+=`</div>`;}if(lib.desc)html+=`<div class="session-detail-title">ℹ️ Descripció</div><div style="font-size:12px;color:var(--text2);margin-bottom:10px">${h(lib.desc)}</div>`;if((lib.mat||[]).length)html+=`<div class="session-detail-title">🎒 Material</div><div style="margin-bottom:10px">${lib.mat.map(m=>`<span class="mat-tag">📦 ${h(m)}</span>`).join('')}</div>`;if((lib.ex||[]).length)html+=`<div class="session-detail-title">💪 Exercicis</div><div class="ex-grid">${lib.ex.map(e=>`<div class="ex-item">${h(e.n)}${e.d?`<div class="ex-sub">${h(e.d)}</div>`:''}${e.gif?`<img src="${safeUrl(e.gif)}" style="width:100%;margin-top:6px;border-radius:4px;max-height:120px;object-fit:contain;background:#000" onerror="this.style.display='none'">`:''}</div>`).join('')}</div>`;}}html+=`</div>`;}
 
     // Feedback: només RPE amb gradient de color
     if(s&&!isWE&&fb&&fb.status){
-      const k2=fk(key);const rpeVal=fb.rpe||5;
+      const k2=fk(key);const rpeVal=fb.rpe||null;
       html+=`<div style="margin-top:8px;padding:12px;background:var(--bg);border-radius:var(--radius-sm);border:1px solid var(--border)">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
           <div class="session-detail-title" style="margin:0">📊 Valoració de la sessió</div>
           <button class="clear-fb-btn" onclick="clearFeedback('${esc(catName)}','${esc(team)}',${di},${wo})">🗑️ Treure feedback</button>
         </div>
         ${rpeSliderHTML(k2,rpeVal,catName,team,di,wo)}
-        <textarea class="fb-note" id="fbn-${k2}" placeholder="Com ha anat la sessió?">${fb.note||''}</textarea>
+        <textarea class="fb-note" id="fbn-${k2}" placeholder="Com ha anat la sessió?" oninput="onFbNoteInput(this,'${esc(catName)}','${esc(team)}',${di},${wo})" onblur="setTimeout(flushRender,0)">${h(ST.drafts[k2]!==undefined?ST.drafts[k2]:(fb.note||''))}</textarea>
         <button class="save-note-btn" onclick="saveFbNote('${esc(catName)}','${esc(team)}',${di},${wo})">Guardar feedback</button>
       </div>`;
     }
@@ -1376,7 +1382,7 @@ function renderEntContent(){
 async function saveFbField(catName,team,di,wo,field,value){const key=sk(catName,team,di,wo);const prev=gF(key)||{};const statusMissing=!prev.status;const data={...prev,[field]:value};if(!data.status)data.status='ok';DB.feedbacks[fk(key)]=data;try{await fbSet('/feedbacks/'+fk(key)+'/'+field,value);if(statusMissing&&field!=='status')await fbSet('/feedbacks/'+fk(key)+'/status','ok');}catch(e){dbg('saveFbField ERR: '+e.message);}}
 async function togglePartit(catName,team,di,wo){const key=sk(catName,team,di,wo);const current=gP(key);if(current){delete DB.partits[fk(key)];toast('Partit eliminat');}else{DB.partits[fk(key)]=true;toast('🤾 Partit marcat!');}renderEntContent();if(ST.mode==='victor')renderPlanner();try{if(current)await fbDel('/partits/'+fk(key));else await fbSet('/partits/'+fk(key),true);}catch(e){dbg('togglePartit ERR: '+e.message);}}
 async function setFb(catName,team,di,wo,status){const key=sk(catName,team,di,wo);const prev=gF(key)||{};const data={...prev,status};DB.feedbacks[fk(key)]=data;renderEntContent();toast('✅ Feedback guardat');try{await fbSet('/feedbacks/'+fk(key)+'/status',status);}catch(e){dbg('setFb ERR: '+e.message);}}
-async function saveFbNote(catName,team,di,wo){const key=sk(catName,team,di,wo);const el=document.getElementById('fbn-'+fk(key));const prev=gF(key)||{};if(el){const data={...prev,note:el.value};DB.feedbacks[fk(key)]=data;toast('📝 Nota guardada');try{await fbSet('/feedbacks/'+fk(key)+'/note',el.value);}catch(e){dbg('saveFbNote ERR: '+e.message);}}}
+async function saveFbNote(catName,team,di,wo,silent){const key=sk(catName,team,di,wo);const el=document.getElementById('fbn-'+fk(key));const prev=gF(key)||{};if(el){const data={...prev,note:el.value};DB.feedbacks[fk(key)]=data;delete ST.drafts[fk(key)];if(!silent)toast('📝 Nota guardada');try{await fbSet('/feedbacks/'+fk(key)+'/note',el.value);}catch(e){dbg('saveFbNote ERR: '+e.message);}}}
 
 // ── Mode Presentació ────────────────────────────────────────────────
 let PRES={exs:[],idx:0,session:null,timer:null,timerSec:0,timerTotal:0,timerRunning:false,phase:'work',wakeLock:null,started:false};
@@ -1397,7 +1403,7 @@ function openPresFromLib(libId){
 }
 
 function _startPres(session,exs){
-  PRES.exs=exs;PRES.session=session;PRES.idx=-1;PRES.started=false;
+  PRES.exs=exs;PRES.session=session;PRES.idx=-1;PRES.started=false;PRES.h=null;
   PRES.timerRunning=false;clearInterval(PRES.timer);
   if('wakeLock' in navigator)navigator.wakeLock.request('screen').then(wl=>{PRES.wakeLock=wl;}).catch(()=>{});
   document.getElementById('pres-topbar-title').textContent=session.tipo;
@@ -1417,13 +1423,14 @@ function closePres(){
 function presNav(dir){
   clearInterval(PRES.timer);PRES.timerRunning=false;
   PRES.idx=Math.max(0,Math.min(PRES.exs.length-1,PRES.idx+dir));
+  if(PRES.h){PRES.h.run=false;PRES.h.ph='work';PRES.h.tot=PRES.h.rem=HIIT.work;}
   renderPresBody();updatePresNav();
 }
 
 function presAction(){
   const isHiit=PRES.session.tipo&&PRES.session.tipo.toLowerCase().includes('hiit');
   if(PRES.idx>=PRES.exs.length){closePres();return;}
-  if(isHiit){presTimerToggle();}
+  if(isHiit){hiitToggle();}
   else{presNav(1);}
 }
 
@@ -1439,9 +1446,9 @@ function renderPresBody(){
     const cIcon={baja:'🟢',media:'🟡',alta:'🟠',max:'🔴'}[PRES.session.carga]||'⚪';
     body.innerHTML=`<div class="pres-start-screen">
       <div style="font-size:60px">🏐</div>
-      <div style="font-size:28px;font-weight:900">${PRES.session.tipo}</div>
-      ${PRES.session.nota?`<div style="font-size:14px;opacity:.65;font-style:italic">📌 ${PRES.session.nota}</div>`:''}
-      <div style="font-size:15px;opacity:.6">${total} exercici${total!==1?'s':''} · ${cIcon} ${PRES.session.carga||''}</div>
+      <div style="font-size:28px;font-weight:900">${h(PRES.session.tipo)}</div>
+      ${PRES.session.nota?`<div style="font-size:14px;opacity:.65;font-style:italic">📌 ${h(PRES.session.nota)}</div>`:''}
+      <div style="font-size:15px;opacity:.6">${total} exercici${total!==1?'s':''} · ${cIcon} ${h(PRES.session.carga||'')}</div>
       <button style="margin-top:16px;padding:16px 40px;font-size:17px;font-weight:900;border:none;border-radius:12px;background:#DC2626;color:#fff;cursor:pointer;width:100%;max-width:280px" onclick="presBegin()">▶ Començar</button>
     </div>`;
     return;
@@ -1472,17 +1479,15 @@ function renderPresBody(){
 
   const hasGif=!!ex.gif;
   body.innerHTML=`
-    <div class="pres-counter">${PRES.idx+1} / ${total}</div>
-    <div class="pres-ex-name" style="${hasGif?'font-size:clamp(16px,4vw,22px);margin-bottom:4px':''}">${ex.n}</div>
-    ${ex.d?`<div class="pres-ex-detail" style="${hasGif?'font-size:clamp(11px,3vw,14px);margin-bottom:6px;opacity:.6':''}">${ex.d}</div>`:''}
-    ${hasGif?`<img class="pres-gif" src="${ex.gif}" alt="${ex.n}" onerror="this.style.display='none'">`:''}
+    <div class="pres-counter">${isHiit?`Sèrie ${(PRES.h||{s:1}).s}/${HIIT.series} · `:''}${PRES.idx+1} / ${total}</div>
+    <div class="pres-ex-name" style="${hasGif?'font-size:clamp(16px,4vw,22px);margin-bottom:4px':''}">${h(ex.n)}</div>
+    ${ex.d?`<div class="pres-ex-detail" style="${hasGif?'font-size:clamp(11px,3vw,14px);margin-bottom:6px;opacity:.6':''}">${h(ex.d)}</div>`:''}
+    ${hasGif?`<img class="pres-gif" src="${safeUrl(ex.gif)}" alt="${h(ex.n)}" onerror="this.style.display='none'">`:''}
     ${timerHTML}
   `;
 
   if(isHiit){
-    PRES.timerSec=40;PRES.timerTotal=40;PRES.phase='work';PRES.timerRunning=false;
-    clearInterval(PRES.timer);
-    actionBtn.textContent='▶ Iniciar timer';
+    hiitPaint();
   } else {
     actionBtn.textContent=PRES.idx<total-1?'Següent ▶':'✅ Finalitzar';
   }
@@ -1538,7 +1543,81 @@ function updatePresNav(){
   if(action&&PRES.idx>=PRES.exs.length) action.textContent='✅ Tancar';
 }
 
-if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(regs=>{regs.forEach(r=>r.unregister());});}
+if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)){navigator.serviceWorker.register('/sw.js').catch(()=>{});}
+
+
+// ══ Utilidades de seguridad ══
+function h(x){return String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function safeUrl(u){u=String(u||'').trim();return /^https?:\/\//i.test(u)?h(u):'';}
+let _fbT={};
+function onFbNoteInput(el,c,t,d,w){const id=el.id.slice(4);ST.drafts[id]=el.value;clearTimeout(_fbT[id]);_fbT[id]=setTimeout(()=>saveFbNote(c,t,d,w,true),1500);}
+function flushRender(){if(ST.pendingRender){ST.pendingRender=false;renderAll();}}
+
+// ══ Cola de escritura (offline) ══
+const _OUT_KEY='cht_outbox';let _outbox={};try{_outbox=JSON.parse(localStorage.getItem(_OUT_KEY)||'{}')||{};}catch(e){_outbox={};}
+let _flushing=false,_again=false;
+function updatePending(){const n=Object.keys(_outbox).length;const b=document.getElementById('pend-badge');if(!b)return;b.textContent='⏳ '+n+' pendent'+(n>1?'s':'');b.classList.toggle('hidden',n===0);}
+function _outSave(){try{localStorage.setItem(_OUT_KEY,JSON.stringify(_outbox));}catch(e){}updatePending();}
+function _write(path,m,data){_outbox[path]={m,d:data===undefined?null:data,t:Date.now()+Math.random()};_outSave();flushOutbox();return Promise.resolve(true);}
+async function fbSet(path,data){return _write(path,'PUT',data);}
+async function fbDel(path){return _write(path,'DELETE');}
+async function flushOutbox(){
+  if(_flushing){_again=true;return;}_flushing=true;
+  try{do{_again=false;const items=Object.entries(_outbox).sort((a,b)=>a[1].t-b[1].t);
+    for(const [p,it] of items){
+      try{await fbFetch(FB+p+'.json',it.m==='DELETE'?{method:'DELETE'}:{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(it.d)});
+        if(_outbox[p]&&_outbox[p].t===it.t){delete _outbox[p];_outSave();}}
+      catch(e){if(/HTTP 4\d\d/.test(e.message)&&!/HTTP (408|429)/.test(e.message)){delete _outbox[p];_outSave();dbg('Escriptura rebutjada '+p+': '+e.message);}else return;}
+    }}while(_again);}finally{_flushing=false;}
+}
+function applyOutbox(){
+  for(const [p,it] of Object.entries(_outbox)){const parts=p.replace(/^\//,'').split('/');const node=parts[0];if(!(node in DB))continue;
+    if(parts.length===1){DB[node]=it.m==='DELETE'?{}:(it.d||{});continue;}
+    let o=DB[node];for(let i=1;i<parts.length-1;i++){if(o[parts[i]]==null||typeof o[parts[i]]!=='object')o[parts[i]]={};o=o[parts[i]];}
+    const last=parts[parts.length-1];if(it.m==='DELETE')delete o[last];else o[last]=it.d;}
+}
+window.addEventListener('online',flushOutbox);setInterval(flushOutbox,20000);
+function applyAll(data){
+  if(data?.config)loadConfig(data.config);else applyConfig();if(data?.biblioteca)loadLibreFromDB(data.biblioteca);
+  DB.sessions=(data?.sessions)||{};DB.feedbacks=(data?.feedbacks)||{};DB.partits=(data?.partits)||{};DB.traindays=(data?.traindays)||{};applyOutbox();
+}
+function saveSnap(){try{const prev=JSON.parse(localStorage.getItem('cht_snap')||'{}');localStorage.setItem('cht_snap',JSON.stringify({...prev,sessions:DB.sessions,feedbacks:DB.feedbacks,partits:DB.partits,traindays:DB.traindays}));}catch(e){}}
+window.addEventListener('pagehide',saveSnap);document.addEventListener('visibilitychange',()=>{if(document.hidden)saveSnap();});
+
+// ══ Timer HIIT automàtic ══
+const HIIT={work:40,rest:20,series:3,sRest:60};
+function hiitReset(){PRES.h={s:1,ph:'work',rem:HIIT.work,tot:HIIT.work,end:0,run:false,last:null};}
+function hiitDur(ph){return ph==='work'?HIIT.work:ph==='rest'?HIIT.rest:HIIT.sRest;}
+function beep(f,d){try{const a=PRES.ac||(PRES.ac=new (window.AudioContext||window.webkitAudioContext)());const o=a.createOscillator(),g=a.createGain();o.frequency.value=f;g.gain.value=.25;o.connect(g);g.connect(a.destination);o.start();o.stop(a.currentTime+d);}catch(e){}try{if(navigator.vibrate)navigator.vibrate(d>.3?300:80);}catch(e){}}
+function hiitPaint(){
+  if(!PRES.h)hiitReset();const hh=PRES.h;const rem=hh.run?Math.max(0,(hh.end-Date.now())/1000):hh.rem;
+  const ph={work:['⏱ TREBALL','#DC2626'],rest:['😮‍💨 DESCANS · segueix:','#16a34a'],sRest:['🔁 DESCANS ENTRE SÈRIES','#2563EB']}[hh.ph];
+  const set=(id,fn)=>{const e=document.getElementById(id);if(e)fn(e);};
+  set('pres-timer-phase',e=>e.textContent=ph[0]);set('pres-timer-num',e=>e.textContent=Math.ceil(rem));
+  set('pres-timer-bar',e=>{e.style.width=(rem/hh.tot*100)+'%';e.style.background=ph[1];});
+  set('pres-action',e=>e.textContent=hh.run?'⏸ Pausa':(rem<hh.tot?'▶ Continuar':'▶ Iniciar'));
+}
+function hiitToggle(){
+  if(!PRES.h)hiitReset();const hh=PRES.h;
+  if(hh.run){hh.rem=Math.max(0,(hh.end-Date.now())/1000);hh.run=false;clearInterval(PRES.timer);}
+  else{hh.run=true;hh.end=Date.now()+hh.rem*1000;clearInterval(PRES.timer);PRES.timer=setInterval(hiitTick,200);beep(660,.15);}
+  hiitPaint();
+}
+function hiitTick(){
+  const hh=PRES.h;if(!hh||!hh.run)return;const rem=Math.max(0,(hh.end-Date.now())/1000);const sec=Math.ceil(rem);
+  if(sec!==hh.last){hh.last=sec;if(sec>0&&sec<=3)beep(880,.12);}
+  if(rem<=0)hiitNext();else hiitPaint();
+}
+function hiitNext(){
+  const hh=PRES.h,n=PRES.exs.length;
+  if(hh.ph==='work'){
+    if(PRES.idx<n-1){PRES.idx++;hh.ph='rest';}
+    else if(hh.s<HIIT.series){hh.s++;PRES.idx=0;hh.ph='sRest';}
+    else{clearInterval(PRES.timer);hh.run=false;PRES.idx=n;beep(1000,.8);renderPresBody();return;}
+  }else hh.ph='work';
+  hh.tot=hiitDur(hh.ph);hh.rem=hh.tot;hh.end=Date.now()+hh.tot*1000;hh.last=null;beep(hh.ph==='work'?1000:500,.4);renderPresBody();
+}
+document.addEventListener('visibilitychange',()=>{const ov=document.getElementById('pres-overlay');if(!document.hidden&&ov&&!ov.classList.contains('hidden')&&'wakeLock' in navigator)navigator.wakeLock.request('screen').then(wl=>{PRES.wakeLock=wl;}).catch(()=>{});});
 
 // ── Equip Favorit ──────────────────────────────────────────────────
 const FAV_KEY='cht_fav_equip';
@@ -1598,14 +1677,14 @@ function renderEntHome(){
     if(p){kc='#EAB308';ico='🤾';title='Partit';cl='';stat='<span class="est" style="background:#EAB308;color:#422006">Dia de partit</span>';}
     else if(s){const tc=sesCls(s);kc=TIPO_COL[tc]||'#F59E0B';ico=sesIco(s);title=s.tipo;cl='';
       const lv=['baja','media','alta','max'].indexOf(s.carga);
-      extra=s.carga?`<div class="epips">${[0,1,2,3].map(i=>`<i style="background:${i<=lv?CC[s.carga]:'rgba(128,128,128,.3)'}"></i>`).join('')}<small>${CARGA_LBL[s.carga]||s.carga}</small></div>`:'';
+      extra=s.carga?`<div class="epips">${[0,1,2,3].map(i=>`<i style="background:${i<=lv?CC[s.carga]:'rgba(128,128,128,.3)'}"></i>`).join('')}<small>${h(CARGA_LBL[s.carga]||s.carga)}</small></div>`:'';
       stat=ans?(fb.status==='ok'?'<span class="est" style="background:#22c55e;color:#fff">✓ Feta</span>':fb.status==='parcial'?'<span class="est" style="background:#f59e0b;color:#fff">⚠ Parcial</span>':'<span class="est" style="background:#ef4444;color:#fff">✕ No feta</span>'):'<span class="est" style="background:rgba(128,128,128,.25);color:var(--text2)">⏳ Pendent</span>';}
     else if(isTrain){ico='📅';title='Per assignar';cl=' dash';}
-    cards+=`<div class="ecard${cl}${di===ST.entDay?' sel':''}" style="--k:${kc}" onclick="selEntDay(${di})"><span class="eico">${ico}</span><div class="eday">${DIAS_FULL[di]}${di===today?' <b>AVUI</b>':''}</div><div class="etit">${title}</div>${extra}<div class="efoot">${stat}</div></div>`;
+    cards+=`<div class="ecard${cl}${di===ST.entDay?' sel':''}" style="--k:${kc}" onclick="selEntDay(${di})"><span class="eico">${ico}</span><div class="eday">${DIAS_FULL[di]}${di===today?' <b>AVUI</b>':''}</div><div class="etit">${h(title)}</div>${extra}<div class="efoot">${stat}</div></div>`;
   }
   const pct=plan?Math.round(done/plan*100):0;
   el.style.setProperty('--tc',col);
-  el.innerHTML=`<div class="eh"><div class="eh-top"><button class="eh-ico" onclick="changeEntWeek(-1)">‹</button><button class="eh-lbl" onclick="toggleCal('ent-cal')">${wLabel(wo)}${wo===0?' · actual':''} ▾</button><button class="eh-ico" onclick="changeEntWeek(1)">›</button><button class="eh-ico" onclick="toggleEntCfg()" title="Ajustos">⚙️</button></div><h2>${team}</h2><small>${catName}</small><div class="hstrip">${strip}</div></div>
+  el.innerHTML=`<div class="eh"><div class="eh-top"><button class="eh-ico" onclick="changeEntWeek(-1)">‹</button><button class="eh-lbl" onclick="toggleCal('ent-cal')">${wLabel(wo)}${wo===0?' · actual':''} ▾</button><button class="eh-ico" onclick="changeEntWeek(1)">›</button><button class="eh-ico" onclick="toggleEntCfg()" title="Ajustos">⚙️</button></div><h2>${h(team)}</h2><small>${h(catName)}</small><div class="hstrip">${strip}</div></div>
   <div class="card eprog"><div class="ering" style="--p:${pct}"><b>${pct}%</b></div><div><div style="font-weight:800">${done} de ${plan} sessions amb feedback</div><div style="font-size:12px;color:${plan&&done===plan?'#16a34a':'var(--text2)'}">${plan&&done===plan?'Setmana completada! 🔥':plan?'Falten '+(plan-done):'Sense sessions aquesta setmana'}</div></div></div>
   <div class="ecar">${cards}</div>`;
   const sel=el.querySelector('.ecard.sel');if(sel)sel.scrollIntoView({inline:'center',block:'nearest'});
@@ -1616,7 +1695,7 @@ const WA_NUMBER='34645181229';
 function openWhatsApp(){
   const team=ST.entEquipo?ST.entEquipo.split('|')[1]:'';
   const msg=team
-    ?`Hola Víctor! Soc l'entrenador de *${team}*. Tenia una pregunta sobre l'entrenament...`
+    ?`Hola Víctor! Soc l'entrenador de *${h(team)}*. Tenia una pregunta sobre l'entrenament...`
     :'Hola Víctor! Tenia una pregunta sobre l\'entrenament...';
   window.open(`https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(msg)}`, '_blank');
 }
@@ -1653,7 +1732,7 @@ function checkNewSessions(){
     const sub=document.getElementById('notif-sub');
     if(banner&&title&&sub){
       title.textContent=`🔔 ${newSessions.length} session${newSessions.length>1?'s noves programades':' nova programada'}!`;
-      sub.innerHTML=newSessions.map(s=>`<strong>${s.dia}:</strong> ${s.tipo}`).join(' · ');
+      sub.innerHTML=newSessions.map(s=>`<strong>${h(s.dia)}:</strong> ${h(s.tipo)}`).join(' · ');
       banner.classList.remove('hidden');
       localStorage.setItem(seenKey,JSON.stringify(allKeys));
     }
@@ -1666,8 +1745,9 @@ function dismissNotif(){
 }
 
 document.addEventListener('DOMContentLoaded',async()=>{
-  try{const data=await fbGetAll();if(data?.config)loadConfig(data.config);else applyConfig();if(data?.biblioteca)loadLibreFromDB(data.biblioteca);DB.sessions=(data?.sessions)||{};DB.feedbacks=(data?.feedbacks)||{};DB.partits=(data?.partits)||{};DB.traindays=(data?.traindays)||{};setConnected();}
-  catch(e){applyConfig();setDisconnected();}
+  try{const data=await fbGetAll();applyAll(data);try{localStorage.setItem('cht_snap',JSON.stringify(data||{}));}catch(e){}setConnected();}
+  catch(e){let snap=null;try{snap=JSON.parse(localStorage.getItem('cht_snap')||'null');}catch(_){}if(snap){applyAll(snap);toast('📴 Sense connexió: dades de l\'última vegada');}else applyConfig();setDisconnected();}
+  updatePending();flushOutbox();
   updateLabels();updateEntLabel();
   if(sessionStorage.getItem('cht_pin')==='1'){ST.pinVerified=true;activateVictor();}
   else{
